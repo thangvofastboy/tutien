@@ -7,7 +7,6 @@ const RUN = {
   presentation: { isFullscreen: false, columns: 80 },
 } as const
 
-const notAncestor = (args: string) => args.startsWith('merge-base')
 const ok = (stdout: string) => ({
   value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
 })
@@ -18,6 +17,7 @@ const GIT: Record<string, string> = {
   'tag -l v* --sort=-v:refname': 'v1.2.0\nv1.1.9\n',
   'rev-parse HEAD': 'aaa\n',
   'rev-parse v1.2.0^{commit}': 'bbb\n',
+  'describe --tags --abbrev=0 HEAD': 'v1.1.0\n',
 }
 
 test('/tutien update checks out the newest tag, then reloads plugins', async ($, on) => {
@@ -27,7 +27,6 @@ test('/tutien update checks out the newest tag, then reloads plugins', async ($,
   on('process.run', async ($, e) => {
     const args = e.argv.slice(1).join(' ')
     ran.push(args)
-    if (notAncestor(args)) return { value: { exitCode: 1, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     return ok(GIT[args] ?? '')
   })
   on('command.run', { command: 'reload-plugins' }, async ($, e) => {
@@ -92,17 +91,32 @@ test('/tutien update refuses a tag signed by a key outside the allowed list', as
   expect(ran.some(a => a.startsWith('checkout'))).toBe(false)
 })
 
-test('/tutien update refuses to roll back to an older tag', async ($, on) => {
+test('/tutien update refuses a rollback: the tag is older than the current build', async ($, on) => {
   const ran: string[] = []
   on('process.run', async ($, e) => {
     const args = e.argv.slice(1).join(' ')
     ran.push(args)
-    if (args.startsWith('merge-base')) return { value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    if (args.startsWith('describe')) return ok('v1.3.0\n')
     return ok(GIT[args] ?? '')
   })
 
   const { text } = await $.command.run(RUN)
 
   expect(text).toContain('older than the current build')
+  expect(ran.some(a => a.startsWith('checkout'))).toBe(false)
+})
+
+test('/tutien update refuses when the current version cannot be determined (fail closed)', async ($, on) => {
+  const ran: string[] = []
+  on('process.run', async ($, e) => {
+    const args = e.argv.slice(1).join(' ')
+    ran.push(args)
+    if (args.startsWith('describe')) return { value: { exitCode: 128, stdout: '', stderr: 'fatal: no tags', isStdoutTruncated: false, isStderrTruncated: false } }
+    return ok(GIT[args] ?? '')
+  })
+
+  const { text } = await $.command.run(RUN)
+
+  expect(text).toContain('Cannot determine the current version')
   expect(ran.some(a => a.startsWith('checkout'))).toBe(false)
 })

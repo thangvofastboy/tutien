@@ -1,0 +1,15 @@
+name = "tutien"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+[[durable_objects.bindings]]
+name = "PLAYER"
+class_name = "PlayerDO"
+
+[[durable_objects.bindings]]
+name = "ROSTER"
+class_name = "RosterDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PlayerDO", "RosterDO"]
