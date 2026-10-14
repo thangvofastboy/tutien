@@ -1,5 +1,5 @@
 // server/src/logic.ts — nghiệp vụ server thuần, test bằng node:test. Luật lấy từ hooks/rules.ts (một nguồn).
-import { applyUsage, newPlayer, effects, need, REALM_NAMES, type Player } from '../../hooks/rules.ts'
+import { applyUsage, newPlayer, effects, need, settle, REALM_NAMES, type Player } from '../../hooks/rules.ts'
 
 export const SEEN_LIMIT = 1000
 export const MAX_TOKENS_PER_TURN = 5_000_000
@@ -40,8 +40,9 @@ export function handleUsage(
   if (st.seen.includes(body.turnId)) return { state: st, events: [], duplicate: true }
   const raw = Math.max(0, Math.floor(Number(body.tokens) || 0))
 
-  // Điểm nghi ngờ (spec 21.2).
-  let suspicion = st.suspicion ?? 0
+  // Điểm nghi ngờ (spec 21.2). Giảm 3 điểm cho mỗi ngày trôi qua, để lỗi nhất thời không đánh dấu vĩnh viễn.
+  const days = st.lastAt === undefined ? 0 : Math.floor((now - st.lastAt) / DAY_MS)
+  let suspicion = Math.max(0, (st.suspicion ?? 0) - 3 * days)
   if (raw > MAX_TOKENS_PER_TURN) suspicion += 3
   const recent = [...(st.recent ?? []), raw].slice(-5)
   if (recent.length === 5 && recent.every(v => v === raw) && raw > 0) suspicion += 2
@@ -92,7 +93,13 @@ export function handleReset(st: State, cls: string, gender: string): State {
 
 export type Row = { name: string; cls: string; gender: string; realm: number; exp: number; pct: number; lifetimeTokens: number; week: number; deaths: number; artifacts: number; flagged?: boolean }
 
-export function row(st: State, now: number): Row {
+// Trạng thái đã xử lý thiên phạt quá hạn tại thời điểm đọc (GET /me, bảng xếp hạng).
+export function settleState(st: State, now: number): State {
+  return { ...st, player: settle(st.player, now).p }
+}
+
+export function row(st0: State, now: number): Row {
+  const st = settleState(st0, now)
   const cutoff = now - 7 * DAY_MS
   const week = Object.entries(st.weekTokens)
     .filter(([k]) => Date.parse(k) >= cutoff - DAY_MS)

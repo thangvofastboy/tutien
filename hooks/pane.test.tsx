@@ -4,7 +4,7 @@ import { newPlayer } from './rules'
 
 test('đường dẫn ảnh theo lớp, giới, bậc hai chữ số', () => {
   const p = { ...newPlayer('Kiếm Tu', 'Nữ'), realm: 7 }
-  expect(realmImage('/root', p, 2)).toBe('/root/assets/realms/Kiếm Tu/Nữ/07-2.png')
+  expect(realmImage('/root', p)).toBe('/root/assets/realms/Kiếm Tu/Nữ/07.png')
 })
 
 import { realmCells, displayMode, CELL_COLS, CELL_ROWS } from './pane'

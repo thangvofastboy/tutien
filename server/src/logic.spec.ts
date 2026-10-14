@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { register, handleUsage, handleReset, boards, DAY_KEY } from './logic.ts'
+import { register, handleUsage, handleReset, boards, row, DAY_KEY } from './logic.ts'
 import { need } from '../../hooks/rules.ts'
 
 const NOW = Date.UTC(2026, 9, 14, 12)
@@ -185,4 +185,20 @@ test('khóa đúng luôn được chấp nhận kể cả khi đang bị khóa t
   assert.equal(verifyDecision(st, true, NOW + 100), 'ok')
   assert.equal(verifyDecision(st, false, NOW + 100), 'locked')
   assert.equal(verifyDecision(register('w', 'Thể Tu', 'Nam', 'h'), false, NOW), 'fail')
+})
+
+import { settleState } from './logic.ts'
+
+test('#2 /me và bảng: thiên phạt quá hạn được xử lý khi đọc, không chờ lượt tiếp theo', () => {
+  let st = register('z', 'Thể Tu', 'Nam', 'h')
+  st = { ...st, player: { ...st.player, exp: need(1), trib: { startedAt: 0, deadline: NOW - 1, required: 999, earned: 10 } } }
+  const s2 = settleState(st, NOW)
+  assert.equal(s2.player.trib, undefined)
+  assert.equal(row(st, NOW).pct, 0)
+})
+
+test('#4 điểm nghi ngờ giảm dần theo ngày', () => {
+  let st = { ...register('y', 'Thể Tu', 'Nam', 'h'), suspicion: 9, lastAt: NOW }
+  st = handleUsage(st, { turnId: 'later', tokens: 1000 }, NOW + 3 * 86_400_000, never).state
+  assert.equal((st.suspicion ?? 0) <= 3, true)
 })

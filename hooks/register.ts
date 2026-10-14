@@ -81,6 +81,7 @@ export const register: Register = on => {
         if (!res.ok) return { text: `Đăng ký thất bại (${res.status}).` }
         await $.store.set('tutien.key', JSON.parse(res.text).key)
         await $.store.set('tutien.name', r.name)
+        await refreshPane($)
         return { text: `Đã ghi danh ${r.name}: ${r.cls}, ${r.gender}. Khóa đã lưu trên máy này.` }
       }
       case 'appearance': {
@@ -89,6 +90,7 @@ export const register: Register = on => {
           return { text: 'Dùng: /tutien appearance <lớp> <giới>' }
         }
         const res = await callServer($, '/appearance', { cls, gender })
+        if (res.ok) await refreshPane($)
         return { text: res.upgrade ? 'Bản mod đã cũ. Chạy /tutien update.' : res.ok ? `Đã đổi thành ${cls}, ${gender}.` : 'Chưa ghi danh, hoặc server không phản hồi.' }
       }
       case 'reset': {
@@ -98,6 +100,7 @@ export const register: Register = on => {
         }
         if (!r.cls || !r.gender) return { text: 'Thiếu lớp hoặc giới hợp lệ.' }
         const res = await callServer($, '/reset', { cls: r.cls, gender: r.gender })
+        if (res.ok) await refreshPane($)
         return { text: res.ok ? `Đã quay về Luyện Khí Sơ Kỳ, ${r.cls}, ${r.gender}.` : 'Không reset được (chưa ghi danh hoặc server lỗi).' }
       }
       case 'persona': {
@@ -212,13 +215,13 @@ export async function runUpdate($: any): Promise<string> {
     return `${latest} is older than the current build (${current.stdout.trim()}); not rolling back.`
   }
 
-  if (head !== target) {
-    const out = await git('checkout', '--detach', latest)
-    if (out.exitCode !== 0) return `git checkout ${latest} failed:\n${out.stderr}`
-  }
+  if (head === target) return `Already at ${latest}.`
 
+  const out = await git('checkout', '--detach', latest)
+  if (out.exitCode !== 0) return `git checkout ${latest} failed:\n${out.stderr}`
+
+  // Reload only after a real checkout, so autoupdate on session start does not reload every time.
   // Runs after this hook returns: $.command.run rejects inside a hook the turn waits on.
   $.clock.after(0, () => void $.command.run({ command: 'reload-plugins' }))
-
-  return head === target ? `Already at ${latest}; reloading plugins.` : `Updated to ${latest}; reloading plugins.`
+  return `Updated to ${latest}; reloading plugins.`
 }

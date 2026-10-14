@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 // Durable Object một người chơi: giữ State, áp luật qua logic.ts.
-import { handleUsage, handleReset, row, recordFail, verifyDecision, type State } from './logic.ts'
+import { handleUsage, handleReset, row, recordFail, verifyDecision, settleState, type State } from './logic.ts'
 import { CLASSES as C, GENDERS as G } from '../../hooks/rules.ts'
 
 const CLASSES: readonly string[] = C
@@ -40,7 +40,9 @@ export class PlayerDO {
       return Response.json({ ok: true })
     }
     if (url.pathname === '/me') {
-      return Response.json({ player: st.player, row: row(st, Date.now()) })
+      const settled = settleState(st, Date.now())
+      if (settled.player !== st.player) await this.state.storage.put('st', settled)
+      return Response.json({ player: settled.player, row: row(settled, Date.now()) })
     }
     if (url.pathname === '/usage') {
       const out = handleUsage(st, body, Date.now(), Math.random)

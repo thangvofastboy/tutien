@@ -147,3 +147,18 @@ test('/tutien update fetches tags without --force', async ($, on) => {
   await $.command.run(RUN)
   expect(ran.some(a => a.startsWith('fetch') && a.includes('--force'))).toBe(false)
 })
+
+test('#7 đã ở bản mới nhất thì không reload plugin', async ($, on) => {
+  const reloads: string[] = []
+  on('process.run', async ($, e) => {
+    const args = e.argv.slice(1).join(' ')
+    if (args === 'rev-parse v1.2.0^{commit}') return ok('aaa\n')   // trùng HEAD
+    return ok(GIT[args] ?? '')
+  })
+  on('command.run', { command: 'reload-plugins' }, async ($, e) => { reloads.push(e.command); return { text: '' } })
+  const clock = mock.clock(on)
+  const { text } = await $.command.run(RUN)
+  await clock.advance(0)
+  expect(text).toBe('Already at v1.2.0.')
+  expect(reloads).toEqual([])
+})

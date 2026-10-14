@@ -14,7 +14,10 @@ const tick = atom({ plugin: 'tutien', key: 'tick' } as const, 0)
 export async function showEffect($: any, kind: string, ms: number): Promise<void> {
   await update($, effect, () => ({ kind, until: Date.now() + ms }))
   const timer = $.clock.every(250, () => void update($, tick, (t: number) => t + 1))
-  $.clock.after(ms, () => timer.cancel())
+  $.clock.after(ms, () => {
+    timer.cancel()
+    void update($, effect, () => null) // tắt hiệu ứng và vẽ lại pane
+  })
 }
 
 // Nhận sự kiện từ server (/usage) và bật hiệu ứng tương ứng.
@@ -26,10 +29,16 @@ export async function applyEvents($: any, events: string[]): Promise<void> {
 }
 
 // Ảnh bậc: assets/realms/<lớp>/<giới>/NN-F.png (khung 1). Khung hào quang được chọn theo đồng hồ.
-export const realmImage = (root: string, p: Player, frame = 1) =>
-  `${root}/assets/realms/${p.cls}/${p.gender}/${String(p.realm).padStart(2, '0')}-${frame}.png`
+export const realmImage = (root: string, p: Player) =>
+  `${root}/assets/realms/${p.cls}/${p.gender}/${String(p.realm).padStart(2, '0')}.png`
 
 // Các hàm dưới đây được register.ts gọi (engine chỉ nạp một module hooks mỗi plugin).
+// Cập nhật nhân vật trong pane từ phản hồi server (sau mỗi lượt, đăng ký, reset, đổi ngoại hình).
+export async function setPlayer($: any, player: Player): Promise<void> {
+  await update($, me, () => player)
+  await $.store.set('tutien.realm', player.realm)
+}
+
 export async function refreshPane($: any): Promise<void> {
   const res = await callServer<{ player: Player }>($, '/me').catch(() => undefined)
   if (res?.ok && res.data) {
@@ -69,7 +78,7 @@ export async function renderPane($: any, e: any) {
   const mode = displayMode(await $.store.get('tutien.display'))
   let art: any = <Text>{alt}</Text>
   if (mode === 'image') {
-    const file = realmImage($.plugin.root, p, 1)
+    const file = realmImage($.plugin.root, p)
     if (await $.fs.stat(file).then(() => true, () => false)) {
       art = <Image key="realm" source={{ file, format: 'png' }} columns={24} rows={12} alt={alt} />
     }
