@@ -18,20 +18,36 @@ export async function refreshPane($: any): Promise<void> {
 
 export const PANE_ID = PANE
 
+export const CELL_COLS = 48
+export const CELL_ROWS = 24
+export const realmCells = (root: string, p: Player) =>
+  `${root}/assets/cells/${p.cls}/${p.gender}/${String(p.realm).padStart(2, '0')}.b64`
+
+// Chế độ hiển thị: image (terminal hỗ trợ đồ họa), raster (ô nửa khối, chạy mọi nơi), text.
+export const displayMode = (v: unknown): 'image' | 'raster' | 'text' =>
+  v === 'image' || v === 'text' ? v : 'raster'
+
 export async function renderPane($: any, e: any) {
-  const { Box, Text, Image } = $.ui.resolve(e)
+  const { Box, Text, Image, Raster } = $.ui.resolve(e)
   const p = await read($, me)
   if (!p) return <Text dimColor>Chưa ghi danh. Dùng /tutien register.</Text>
 
-  const file = realmImage($.plugin.root, p, 1)
-  const hasImage = await $.fs.stat(file).then(() => true, () => false)
   const alt = `${REALM_NAMES[p.realm - 1]} (${p.cls}, ${p.gender})`
+  const mode = displayMode(await $.store.get('tutien.display'))
+  let art: any = <Text>{alt}</Text>
+  if (mode === 'image') {
+    const file = realmImage($.plugin.root, p, 1)
+    if (await $.fs.stat(file).then(() => true, () => false)) {
+      art = <Image key="realm" source={{ file, format: 'png' }} columns={24} rows={12} alt={alt} />
+    }
+  } else if (mode === 'raster') {
+    const cells = await $.fs.read(realmCells($.plugin.root, p)).catch(() => null)
+    if (cells) art = <Raster key="realm" columns={CELL_COLS} rows={CELL_ROWS} cells={String(cells).trim()} />
+  }
 
   return (
     <Box flexDirection="column">
-      {hasImage
-        ? <Image key="realm" source={{ file, format: 'png' }} columns={24} rows={12} alt={alt} />
-        : <Text>{alt}</Text>}
+      {art}
       <Text>{statusText(p, Date.now())}</Text>
       <Text dimColor>Tiến độ bậc: {percentExp(p)}%</Text>
     </Box>

@@ -8,6 +8,7 @@ export const HELP = [
   '/tutien status (s)                     bậc, tiến độ, thiên phạt',
   '/tutien top (t)                        mọi bảng xếp hạng',
   '/tutien autoupdate on|off              tự cập nhật khi mở Claude Code',
+  '/tutien hienthi image|raster|text      cách vẽ nhân vật trong pane',
   '/tutien update                         cập nhật bản đã ký mới nhất',
   '/tutien help                           danh sách này',
 ].join('\n')

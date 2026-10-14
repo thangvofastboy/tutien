@@ -98,6 +98,14 @@ export const register: Register = on => {
         const res = await callServer($, '/reset', { cls: r.cls, gender: r.gender })
         return { text: res.ok ? `Đã quay về Luyện Khí Sơ Kỳ, ${r.cls}, ${r.gender}.` : 'Không reset được (chưa ghi danh hoặc server lỗi).' }
       }
+      case 'hienthi': {
+        const mode = (rest[0] ?? '').trim()
+        if (!['image', 'raster', 'text'].includes(mode)) {
+          return { text: 'Dùng: /tutien hienthi image|raster|text\nimage: terminal có đồ họa (kitty, WezTerm, iTerm2)\nraster: ô màu, chạy mọi terminal (mặc định)\ntext: chỉ chữ' }
+        }
+        await $.store.set('tutien.display', mode)
+        return { text: `Chế độ hiển thị: ${mode}. Mở lại pane để xem.` }
+      }
       case 'status': case 's': {
         const res = await callServer<{ player: any }>($, '/me')
         if (!res.ok || !res.data) return { text: 'Chưa ghi danh, hoặc server không phản hồi.' }
