@@ -5,6 +5,7 @@ import { callServer, SERVER } from './api'
 import { CLASSES, GENDERS } from './rules'
 import { HELP, tokens, parseRegister, parseReset, formatTop } from './commands'
 import { statusText } from './display'
+import { refreshPane, renderPane, PANE_ID } from './pane'
 
 const USAGE = 'Usage: /tutien update | autoupdate on|off'
 
@@ -21,6 +22,13 @@ export function compareVersions(a: string, b: string): number {
 }
 
 export const register: Register = on => {
+  on('command.run', { command: 'tutien-pane' }, async $ => {
+    await $.ui.open({ id: PANE_ID, title: 'Tu tiên' })
+    return { text: 'Đã mở pane Tu tiên.' }
+  })
+
+  on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => renderPane($, e))
+
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     await recordTurn($, e.turnId, e.usage)
@@ -28,6 +36,10 @@ export const register: Register = on => {
   })
 
   on('session.start', async ($, e, next) => {
+    await $.command.register({
+      name: 'tutien-pane',
+      description: 'Mở pane Tu tiên',
+    })
     await $.command.register({
       name: 'tutien',
       description: 'Tu tien: update pulls the newest tag and reloads plugins',
@@ -37,6 +49,7 @@ export const register: Register = on => {
     await $.store.set('tutien.version', parseDescribe(v))
     if ((await $.store.get('tutien.autoupdate')) === 'on') await runUpdate($)
     await flushUsage($)
+    await refreshPane($)
 
     return next(e)
   })
