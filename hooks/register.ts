@@ -1,5 +1,6 @@
 import type { Register } from 'claude-code'
 import { parseAutoUpdate, parseDescribe } from './version'
+import { recordTurn, flushUsage } from './usage'
 
 const USAGE = 'Usage: /tutien update | autoupdate on|off'
 
@@ -16,6 +17,12 @@ export function compareVersions(a: string, b: string): number {
 }
 
 export const register: Register = on => {
+  on('turn.complete', async ($, e, next) => {
+    const result = await next(e)
+    await recordTurn($, e.turnId, e.usage)
+    return result
+  })
+
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'tutien',
@@ -25,6 +32,7 @@ export const register: Register = on => {
     const v = (await $.process.run(['git', 'describe', '--tags', '--abbrev=0', 'HEAD'], { cwd: $.plugin.root, timeoutMs: 30_000 })).stdout
     await $.store.set('tutien.version', parseDescribe(v))
     if ((await $.store.get('tutien.autoupdate')) === 'on') await runUpdate($)
+    await flushUsage($)
 
     return next(e)
   })
