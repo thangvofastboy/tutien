@@ -92,7 +92,7 @@ export default {
     if (!key || !name || !NAME.test(name)) return json({ error: 'unauthorized' }, 401)
     const stub = playerStub(name)
     const verify = await stub.fetch('https://do/verify', { method: 'POST', body: JSON.stringify({ keyHash: await sha256(key) }) })
-    if (verify.status === 429) return json({ error: 'locked', message: 'Sai khóa quá nhiều lần, thử lại sau một giờ.' }, 429)
+    if (verify.status === 429) return json({ error: 'locked', message: 'Sai khóa quá nhiều lần trong giờ này; chỉ khóa đúng mới được chấp nhận.' }, 429)
     if (verify.status !== 200) return json({ error: 'unauthorized' }, 401)
 
     if (url.pathname === '/rotate-key') {

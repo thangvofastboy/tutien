@@ -3,6 +3,7 @@ import { callServer } from './api'
 import { statusText, percentExp } from './display'
 import { REALM_NAMES, type Player } from './rules'
 import { tribEffect, overlayFrame, effectActive } from './effects'
+import { paneLine } from './persona'
 
 const PANE = 'tu-tien'
 const me = atom({ plugin: 'tutien', key: 'me' } as const, undefined as Player | undefined)
@@ -58,6 +59,13 @@ export async function renderPane($: any, e: any) {
   const overlay = effectActive(fx, Date.now()) && fx
     ? <Text>{overlayFrame(fx.kind as any, await read($, tick))}</Text>
     : null
+  const active = effectActive(fx, Date.now()) ? fx!.kind : null
+  const line = paneLine(
+    { realm: p.realm, tribActive: !!p.trib, died: active === 'red', tribFailed: active === 'rain', breakthrough: active === 'gold' },
+    ((await $.store.get('tutien.persona')) as string | null) ?? null,
+    ((await $.store.get('tutien.personaLines')) as string[] | null) ?? null,
+    Math.floor(Date.now() / 60_000),
+  )
   const mode = displayMode(await $.store.get('tutien.display'))
   let art: any = <Text>{alt}</Text>
   if (mode === 'image') {
@@ -75,6 +83,7 @@ export async function renderPane($: any, e: any) {
       {overlay}
       {art}
       <Text>{statusText(p, Date.now())}</Text>
+      <Text italic>{line}</Text>
       <Text dimColor>Tiến độ bậc: {percentExp(p)}%</Text>
     </Box>
   )

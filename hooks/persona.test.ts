@@ -35,3 +35,15 @@ test('trộn thoại persona với thoại chung ở tỷ lệ 50/50 (tất đ�
   const own = picks.filter(p => persona.lines.includes(p)).length
   expect(own).toBe(50)
 })
+
+import { paneLine } from './persona'
+
+test('thoại pane: có persona thì nửa số lần là thoại persona; thoại tùy chỉnh được ưu tiên', () => {
+  const state = { realm: 5 }
+  const a = paneLine(state, 'lanh-lung', null, 0)
+  expect(personaById('lanh-lung')!.lines.includes(a)).toBe(true)
+  const custom = ['Câu riêng một.', 'Câu riêng hai.']
+  expect(custom.includes(paneLine(state, 'tuy-chinh', custom, 2))).toBe(true)
+  expect(typeof paneLine(state, null, null, 3)).toBe('string')
+  expect(/[一-鿿]/.test(paneLine(state, 'cuong-code', null, 1))).toBe(false)
+})

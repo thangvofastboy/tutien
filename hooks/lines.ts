@@ -273,8 +273,8 @@ export const LINES = {
 } as const
 
 export const REALM_GROUPS = [
-  'Luyện Khí\', \'Trúc Cơ\', \'Kim Đan\', \'Nguyên Anh\', \'Hóa Thần\', \'Luyện Hư',
-  'Hợp Thể\', \'Đại Thừa\', \'Độ Kiếp\', \'Chân Tiên\', \'Tiên Đế',
+  'Luyện Khí', 'Trúc Cơ', 'Kim Đan', 'Nguyên Anh', 'Hóa Thần', 'Luyện Hư',
+  'Hợp Thể', 'Đại Thừa', 'Độ Kiếp', 'Chân Tiên', 'Tiên Đế',
 ] as const
 
 // Đại cảnh giới của một bậc (1..33): bậc 1-3 là Luyện Khí, 4-6 là Trúc Cơ, ...

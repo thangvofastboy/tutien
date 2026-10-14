@@ -46,3 +46,19 @@ export function pickPersonaLine(p: Persona, seed: number, common: string[] = [])
   const pool = seed % 2 === 0 || common.length === 0 ? p.lines : common
   return pool[Math.abs(seed) % pool.length]
 }
+
+// Thoại hiển thị trong pane: thoại sự kiện/cảnh giới (lines.ts) trộn với thoại persona theo seed.
+import { pickLine } from './lines'
+export function paneLine(
+  state: { realm: number; died?: boolean; tribFailed?: boolean; tribActive?: boolean; breakthrough?: boolean },
+  personaId: string | null,
+  customLines: string[] | null,
+  seed: number,
+): string {
+  const common = pickLine(state, seed)
+  if (personaId === 'tuy-chinh' && customLines && customLines.length > 0) {
+    return seed % 2 === 0 ? customLines[Math.abs(seed) % customLines.length] : common
+  }
+  const p = personaId ? personaById(personaId) : null
+  return p ? pickPersonaLine(p, seed, [common]) : common
+}

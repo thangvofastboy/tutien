@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 // Durable Object một người chơi: giữ State, áp luật qua logic.ts.
-import { handleUsage, handleReset, row, recordFail, isLocked, type State } from './logic.ts'
+import { handleUsage, handleReset, row, recordFail, verifyDecision, type State } from './logic.ts'
 import { CLASSES as C, GENDERS as G } from '../../hooks/rules.ts'
 
 const CLASSES: readonly string[] = C
@@ -25,12 +25,11 @@ export class PlayerDO {
 
     if (url.pathname === '/verify') {
       const now = Date.now()
-      if (isLocked(st, now)) return Response.json({ ok: false, locked: true }, { status: 429 })
-      if (body.keyHash !== st.keyHash) {
-        await this.state.storage.put('st', recordFail(st, now))
-        return Response.json({ ok: false }, { status: 401 })
-      }
-      return Response.json({ ok: true })
+      const decision = verifyDecision(st, body.keyHash === st.keyHash, now)
+      if (decision === 'ok') return Response.json({ ok: true })
+      if (decision === 'locked') return Response.json({ ok: false, locked: true }, { status: 429 })
+      await this.state.storage.put('st', recordFail(st, now))
+      return Response.json({ ok: false }, { status: 401 })
     }
     if (url.pathname === '/rotate' && req.method === 'POST') {
       await this.state.storage.put('st', { ...st, keyHash: body.keyHash })

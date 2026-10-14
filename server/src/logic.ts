@@ -162,3 +162,10 @@ export function recordFail(st: State & { fails?: Record<string, number> }, now: 
 export function isLocked(st: State & { fails?: Record<string, number> }, now: number): boolean {
   return (st.fails?.[HOUR_KEY(now)] ?? 0) >= FAIL_LIMIT
 }
+
+// Quyết định xác thực: khóa đúng luôn qua, để người khác không khóa được tài khoản bằng cách gửi khóa sai.
+// Khi đã sai nhiều trong giờ, các lần sai tiếp theo nhận 'locked' (429) thay vì 'fail'.
+export function verifyDecision(st: State & { fails?: Record<string, number> }, keyMatches: boolean, now: number): 'ok' | 'locked' | 'fail' {
+  if (keyMatches) return 'ok'
+  return isLocked(st, now) ? 'locked' : 'fail'
+}

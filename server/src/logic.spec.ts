@@ -176,3 +176,13 @@ test('sai khóa 20 lần trong một giờ thì bị khóa tạm, sang giờ sau
   assert.equal(isLocked(st, NOW + 300), true)
   assert.equal(isLocked(st, NOW + 3_600_000 + 1000), false)
 })
+
+import { verifyDecision } from './logic.ts'
+
+test('khóa đúng luôn được chấp nhận kể cả khi đang bị khóa tạm (chống khóa tài khoản người khác)', () => {
+  let st = register('v', 'Thể Tu', 'Nam', 'h')
+  for (let i = 0; i < 25; i++) st = recordFail(st, NOW + i)
+  assert.equal(verifyDecision(st, true, NOW + 100), 'ok')
+  assert.equal(verifyDecision(st, false, NOW + 100), 'locked')
+  assert.equal(verifyDecision(register('w', 'Thể Tu', 'Nam', 'h'), false, NOW), 'fail')
+})
