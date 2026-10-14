@@ -15,7 +15,8 @@ Bạn **không** cần vẽ 3 khung hào quang cho mỗi bậc. Script `scripts/
 
 - **Phong cách**: pixel art, nhân vật chibi toàn thân, nhìn thẳng.
 - **Kích thước giao**: 96×96 px, PNG. Nếu AI chỉ tạo được ảnh lớn (ví dụ 512×512), hãy thu nhỏ bằng phương pháp *nearest neighbor* để giữ nét pixel.
-- **Nền**: **trong suốt hoàn toàn** (kênh alpha), không có nền, không có bóng sàn hình hộp. Không dùng nền navy hay bàn cờ.
+- **Nền**: kết quả cuối phải **trong suốt hoàn toàn** (kênh alpha). Vì ChatGPT và Gemini thường không xuất được alpha, khi vẽ hãy dùng nền xanh lá phẳng `#00FF00`, rồi chạy `scripts/prepare_art.py` để xóa nền. Không dùng nền navy hay bàn cờ.
+- **Prompt riêng cho từng AI**: `docs/art/prompt-chatgpt.md` và `docs/art/prompt-gemini.md`.
 - **Bố cục**: nhân vật ở giữa, cùng tư thế, cùng tỉ lệ, cùng khoảng cách tới mép trong **toàn bộ** 462 ảnh. Đầu ở khoảng 1/5 từ trên xuống, chân cách đáy khoảng 1/8.
 - **Hào quang**: nằm trong khung, không bị cắt; có thể tràn gần mép nhưng không chạm mép.
 - **Không có**: chữ (trừ chi tiết cố ý của lớp, mục 3), watermark, chữ ký, khung viền.

@@ -14,16 +14,20 @@ CLASSES = ['Kiếm Tu', 'Đan Sư', 'Trận Pháp Sư', 'Luyện Khí Sư', 'Ph�
 GENDERS = ['Nam', 'Nữ']
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
+DEFAULT = 0x01000000  # Raster: màu mặc định của terminal (dùng cho điểm trong suốt)
+
+def _color(px) -> int:
+    r, g, b, a = px
+    return DEFAULT if a < 128 else (r << 16) | (g << 8) | b
+
 def encode_cells(im: Image.Image) -> str:
-    small = im.convert('RGB').resize((COLS, COLS), Image.BOX)  # thu xuống 48×48, lấy trung bình
+    small = im.convert('RGBA').resize((COLS, COLS), Image.BOX)  # thu xuống 48×48, lấy trung bình
     buf = bytearray()
     for y in range(ROWS):
         for x in range(COLS):
-            top = small.getpixel((x, 2 * y))
-            bot = small.getpixel((x, 2 * y + 1))
-            buf += struct.pack('<III', GLYPH,
-                               (top[0] << 16) | (top[1] << 8) | top[2],
-                               (bot[0] << 16) | (bot[1] << 8) | bot[2])
+            top = _color(small.getpixel((x, 2 * y)))
+            bot = _color(small.getpixel((x, 2 * y + 1)))
+            buf += struct.pack('<III', GLYPH, top, bot)
     return base64.b64encode(bytes(buf)).decode('ascii')
 
 def build(src: pathlib.Path, out: pathlib.Path, classes, genders, realms):
@@ -31,7 +35,12 @@ def build(src: pathlib.Path, out: pathlib.Path, classes, genders, realms):
         for g in genders:
             (out / c / g).mkdir(parents=True, exist_ok=True)
             for r in realms:
-                im = Image.open(src / c / g / f'{r:02d}-1.png')
+                f = src / c / g / f'{r:02d}.png'
+                if not f.exists():
+                    f = src / c / g / f'{r:02d}-1.png'  # ảnh do gen_realms.py tạo
+                if not f.exists():
+                    continue
+                im = Image.open(f)
                 (out / c / g / f'{r:02d}.b64').write_text(encode_cells(im), encoding='ascii')
 
 if __name__ == '__main__':

@@ -31,3 +31,17 @@ def test_build_writes_file(tmp_path=None):
 if __name__ == '__main__':
     import pytest
     raise SystemExit(pytest.main([__file__]))
+
+def test_transparent_pixels_use_terminal_default_color():
+    im = Image.new('RGBA', (96, 96), (0, 0, 0, 0))
+    data = base64.b64decode(b.encode_cells(im))
+    cp, fg, bg = struct.unpack_from('<III', data, 0)
+    assert fg == 0x01000000 and bg == 0x01000000
+
+def test_build_reads_plain_name():
+    with tempfile.TemporaryDirectory() as d:
+        src = pathlib.Path(d) / 'src'; (src / 'Ma Tu' / 'Nữ').mkdir(parents=True)
+        Image.new('RGBA', (96, 96), (5, 5, 5, 255)).save(src / 'Ma Tu' / 'Nữ' / '01.png')
+        out = pathlib.Path(d) / 'out'
+        b.build(src, out, ['Ma Tu'], ['Nữ'], [1])
+        assert (out / 'Ma Tu' / 'Nữ' / '01.b64').exists()
