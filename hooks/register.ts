@@ -56,7 +56,8 @@ export async function runUpdate($: any): Promise<string> {
     return `Local changes in ${root}; commit or stash them first:\n${dirty.stdout}`
   }
 
-  const fetched = await git('fetch', '--tags', '--force', 'origin')
+  // No --force: a remote cannot silently move a tag this clone already has.
+  const fetched = await git('fetch', '--tags', 'origin')
   if (fetched.exitCode !== 0) return `git fetch failed:\n${fetched.stderr}`
 
   const tags = await git('tag', '-l', 'v*', '--sort=-v:refname')
@@ -75,6 +76,13 @@ export async function runUpdate($: any): Promise<string> {
   // Some git versions exit 0 for a valid signature from an unlisted key; reject it explicitly.
   if (verified.exitCode !== 0 || verified.stderr.includes('No principal matched')) {
     return `Tag ${latest} is not signed by a trusted release key; not updating.\n${verified.stderr}`
+  }
+
+  // The signature covers the tag object, not the ref name: a ref v9.9.9 pointing at an old signed
+  // v1.0.0 object verifies fine. Require the signed name to match the ref we are about to trust.
+  const signedName = /^tag (.+)$/m.exec((await git('cat-file', 'tag', latest)).stdout)?.[1]?.trim()
+  if (signedName !== latest) {
+    return `Tag ${latest} does not match the signed tag name (${signedName ?? 'none'}); not updating.`
   }
 
   const head = (await git('rev-parse', 'HEAD')).stdout.trim()

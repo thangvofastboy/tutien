@@ -18,6 +18,7 @@ const GIT: Record<string, string> = {
   'rev-parse HEAD': 'aaa\n',
   'rev-parse v1.2.0^{commit}': 'bbb\n',
   'describe --tags --abbrev=0 HEAD': 'v1.1.0\n',
+  'cat-file tag v1.2.0': 'object bbb\ntype commit\ntag v1.2.0\ntagger t\n',
 }
 
 test('/tutien update checks out the newest tag, then reloads plugins', async ($, on) => {
@@ -119,4 +120,30 @@ test('/tutien update refuses when the current version cannot be determined (fail
 
   expect(text).toContain('Cannot determine the current version')
   expect(ran.some(a => a.startsWith('checkout'))).toBe(false)
+})
+
+test('/tutien update refuses a replayed signature: ref name differs from the signed tag name', async ($, on) => {
+  const ran: string[] = []
+  on('process.run', async ($, e) => {
+    const args = e.argv.slice(1).join(' ')
+    ran.push(args)
+    if (args.startsWith('cat-file tag')) return ok('object bbb\ntype commit\ntag v1.0.0\ntagger t\n')
+    return ok(GIT[args] ?? '')
+  })
+
+  const { text } = await $.command.run(RUN)
+
+  expect(text).toContain('does not match the signed tag name')
+  expect(ran.some(a => a.startsWith('checkout'))).toBe(false)
+})
+
+test('/tutien update fetches tags without --force', async ($, on) => {
+  const ran: string[] = []
+  on('process.run', async ($, e) => {
+    const args = e.argv.slice(1).join(' ')
+    ran.push(args)
+    return ok(GIT[args] ?? '')
+  })
+  await $.command.run(RUN)
+  expect(ran.some(a => a.startsWith('fetch') && a.includes('--force'))).toBe(false)
 })

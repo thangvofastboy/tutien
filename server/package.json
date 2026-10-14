@@ -7,5 +7,5 @@
     "deploy": "wrangler deploy",
     "test": "node --test --experimental-strip-types src/logic.spec.ts"
   },
-  "devDependencies": { "wrangler": "^4.0.0", "typescript": "^5.6.0", "@cloudflare/workers-types": "^4.0.0" }
+  "devDependencies": { "wrangler": "^4.0.0", "typescript": "^5.6.0", "@cloudflare/workers-types": "^5.20261006.1" }
 }

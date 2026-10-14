@@ -2,6 +2,8 @@
 import { applyUsage, newPlayer, effects, REALM_NAMES, type Player } from '../../hooks/rules.ts'
 
 export const SEEN_LIMIT = 1000
+export const MAX_TOKENS_PER_TURN = 5_000_000
+export const validTurnId = (id: unknown) => typeof id === 'string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(id)
 export const DAY_MS = 86_400_000
 export const DAY_KEY = (now: number) => new Date(now).toISOString().slice(0, 10)
 
@@ -25,9 +27,11 @@ export function register(name: string, cls: string, gender: string, keyHash: str
 
 export function handleUsage(
   st: State, body: { turnId: string; tokens: number }, now: number, rng: () => number,
-): { state: State; events: string[]; duplicate: boolean } {
+): { state: State; events: string[]; duplicate: boolean; invalid?: boolean } {
+  if (!validTurnId(body.turnId)) return { state: st, events: [], duplicate: false, invalid: true }
   if (st.seen.includes(body.turnId)) return { state: st, events: [], duplicate: true }
-  const tokens = Math.max(0, Math.floor(Number(body.tokens) || 0))
+  // Client-reported: clamp to the per-turn ceiling (spec 21.1); hourly and daily caps come in the anti-cheat task.
+  const tokens = Math.min(MAX_TOKENS_PER_TURN, Math.max(0, Math.floor(Number(body.tokens) || 0)))
   const { p, events } = applyUsage(st.player, tokens, now, rng)
   const day = DAY_KEY(now)
   const weekTokens: Record<string, number> = {}
@@ -71,7 +75,10 @@ export function row(st: State, now: number): Row {
 
 // Năm bảng (spec mục 16), cùng một tập người chơi.
 export function boards(states: State[], now: number) {
-  const rows = states.map(s => row(s, now))
+  return sortBoards(states.map(s => row(s, now)))
+}
+
+export function sortBoards(rows: Row[]) {
   const by = (cmp: (a: Row, b: Row) => number) => [...rows].sort((a, b) => cmp(a, b) || a.name.localeCompare(b.name))
   return {
     tuVi: by((a, b) => b.realm - a.realm || b.exp - a.exp),

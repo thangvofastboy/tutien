@@ -85,3 +85,18 @@ test('thêm bản phát hành mới đẩy bản cũ nhất ra ngoài', () => {
   r = addRelease(r, 'v1.2.0')
   assert.deepEqual(r, ['v1.2.0', 'v1.1.0'])
 })
+
+import { MAX_TOKENS_PER_TURN, validTurnId } from './logic.ts'
+
+test('trần token mỗi lượt: phần vượt không được cộng', () => {
+  let st = register('thang', 'Thể Tu', 'Nam', 'h')
+  st = handleUsage(st, { turnId: 'big', tokens: 999_000_000 }, NOW, never).state
+  assert.equal(st.lifetimeTokens, MAX_TOKENS_PER_TURN)
+})
+
+test('turnId phải là chuỗi ngắn hợp lệ', () => {
+  assert.equal(validTurnId('turn_abc-123'), true)
+  assert.equal(validTurnId(''), false)
+  assert.equal(validTurnId('x'.repeat(200)), false)
+  assert.equal(validTurnId(42 as any), false)
+})

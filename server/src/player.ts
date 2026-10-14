@@ -41,9 +41,6 @@ export class PlayerDO {
       await this.state.storage.put('st', next)
       return Response.json({ player: next.player, resets: next.resets })
     }
-    if (url.pathname === '/snapshot') {
-      return Response.json(st)
-    }
     return new Response('not found', { status: 404 })
   }
 }
