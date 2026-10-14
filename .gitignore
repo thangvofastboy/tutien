@@ -1,0 +1,8 @@
+.claude-plugin/types/
+.remember/
+node_modules/
+.DS_Store
+*.log
+.dev.vars
+.wrangler/
+__pycache__/
