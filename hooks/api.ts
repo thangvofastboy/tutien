@@ -1,5 +1,5 @@
 // hooks/api.ts — gọi server kèm khóa và phiên bản mod (spec 21.5). Lỗi 426 báo cần cập nhật.
-export const SERVER = 'https://tutien.example.workers.dev' // thay bằng URL thật sau khi deploy
+export const SERVER = 'https://tutien.thang-vo.workers.dev'
 
 type Store = { get: (k: string) => Promise<unknown> }
 type Http = { fetch: (url: string, init?: any) => Promise<{ status: number; ok: boolean; headers: Record<string, string>; text: string }> }
