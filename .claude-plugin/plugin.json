@@ -1,6 +1,6 @@
 {
   "name": "tutien",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "/tutien commands; /tutien update checks out the newest git tag and reloads plugins",
   "types": "./types/index.d.ts"
 }
