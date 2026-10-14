@@ -2,9 +2,27 @@ import { atom, read, update } from 'claude-code'
 import { callServer } from './api'
 import { statusText, percentExp } from './display'
 import { REALM_NAMES, type Player } from './rules'
+import { tribEffect, overlayFrame, effectActive } from './effects'
 
 const PANE = 'tu-tien'
 const me = atom({ plugin: 'tutien', key: 'me' } as const, undefined as Player | undefined)
+const effect = atom({ plugin: 'tutien', key: 'effect' } as const, null as { kind: string; until: number } | null)
+const tick = atom({ plugin: 'tutien', key: 'tick' } as const, 0)
+
+// Bật hiệu ứng thiên phạt rồi tự tắt sau đúng thời lượng (spec 14). Khung hình đổi mỗi 250 ms.
+export async function showEffect($: any, kind: string, ms: number): Promise<void> {
+  await update($, effect, () => ({ kind, until: Date.now() + ms }))
+  const timer = $.clock.every(250, () => void update($, tick, (t: number) => t + 1))
+  $.clock.after(ms, () => timer.cancel())
+}
+
+// Nhận sự kiện từ server (/usage) và bật hiệu ứng tương ứng.
+export async function applyEvents($: any, events: string[]): Promise<void> {
+  for (const ev of events) {
+    const fx = tribEffect(ev)
+    if (fx) await showEffect($, fx.kind, fx.ms)
+  }
+}
 
 // Ảnh bậc: assets/realms/<lớp>/<giới>/NN-F.png (khung 1). Khung hào quang được chọn theo đồng hồ.
 export const realmImage = (root: string, p: Player, frame = 1) =>
@@ -33,6 +51,10 @@ export async function renderPane($: any, e: any) {
   if (!p) return <Text dimColor>Chưa ghi danh. Dùng /tutien register.</Text>
 
   const alt = `${REALM_NAMES[p.realm - 1]} (${p.cls}, ${p.gender})`
+  const fx = await read($, effect)
+  const overlay = effectActive(fx, Date.now()) && fx
+    ? <Text>{overlayFrame(fx.kind as any, await read($, tick))}</Text>
+    : null
   const mode = displayMode(await $.store.get('tutien.display'))
   let art: any = <Text>{alt}</Text>
   if (mode === 'image') {
@@ -47,6 +69,7 @@ export async function renderPane($: any, e: any) {
 
   return (
     <Box flexDirection="column">
+      {overlay}
       {art}
       <Text>{statusText(p, Date.now())}</Text>
       <Text dimColor>Tiến độ bậc: {percentExp(p)}%</Text>

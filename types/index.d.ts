@@ -14,6 +14,10 @@ export type TutienPlayer = {
 
 declare module 'claude-code' {
   interface PluginState {
-    tutien: { me: TutienPlayer | undefined }
+    tutien: {
+      me: TutienPlayer | undefined
+      effect: { kind: string; until: number } | null
+      tick: number
+    }
   }
 }
