@@ -30,17 +30,11 @@ jobs:
           git config gpg.format ssh
           git config user.signingkey ~/.ssh/tag_signing
 
-      - name: Tag the merge with the next patch version
+      - name: Tag the release named in plugin.json
         run: |
-          if git describe --exact-match --tags HEAD 2>/dev/null; then
-            echo "HEAD already tagged"; exit 0
-          fi
-          latest=$(git tag -l 'v*' --sort=-v:refname | head -1)
-          if [ -z "$latest" ]; then
-            next=v0.1.0
-          else
-            IFS=. read -r major minor patch <<< "${latest#v}"
-            next="v$major.$minor.$((patch + 1))"
+          next="v$(python3 -c 'import json;print(json.load(open(".claude-plugin/plugin.json"))["version"])')"
+          if git rev-parse -q --verify "refs/tags/$next" >/dev/null; then
+            echo "$next already tagged; bump .claude-plugin/plugin.json version to release"; exit 0
           fi
           git tag -s "$next" -m "$next"
           git push origin "$next"

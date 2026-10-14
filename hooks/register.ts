@@ -1,5 +1,5 @@
 import type { Register } from 'claude-code'
-import { parseAutoUpdate, parseDescribe } from './version'
+import { parseAutoUpdate, parseDescribe, versionFromManifest } from './version'
 import { recordTurn, flushUsage } from './usage'
 import { callServer, SERVER } from './api'
 import { CLASSES, GENDERS } from './rules'
@@ -47,8 +47,14 @@ export const register: Register = on => {
       description: 'Tu tien: update pulls the newest tag and reloads plugins',
       argumentHint: 'update | autoupdate on|off',
     })
-    const v = (await $.process.run(['git', 'describe', '--tags', '--abbrev=0', 'HEAD'], { cwd: $.plugin.root, timeoutMs: 30_000 })).stdout
-    await $.store.set('tutien.version', parseDescribe(v))
+    // Bản clone git: phiên bản theo tag. Bản cài từ marketplace (không có git): theo plugin.json.
+    const described = await $.process.run(['git', 'describe', '--tags', '--abbrev=0', 'HEAD'], { cwd: $.plugin.root, timeoutMs: 30_000 }).catch(() => null)
+    let version = described && described.exitCode === 0 ? parseDescribe(described.stdout) : ''
+    if (!version) {
+      const manifest = await $.fs.read(`${$.plugin.root}/.claude-plugin/plugin.json`).catch(() => '')
+      version = versionFromManifest(String(manifest))
+    }
+    await $.store.set('tutien.version', version)
     if ((await $.store.get('tutien.autoupdate')) === 'on') await runUpdate($)
     await flushUsage($)
     await refreshPane($)
@@ -167,7 +173,7 @@ export async function runUpdate($: any): Promise<string> {
     $.process.run(['git', ...args], { cwd: root, timeoutMs: 120_000 })
 
   if ((await git('rev-parse', '--is-inside-work-tree')).exitCode !== 0) {
-    return `${root} is not a git clone, so it cannot update from tags. Install from a clone (see README).`
+    return 'Bản này được cài từ marketplace. Cập nhật bằng: /plugin update tutien rồi /reload-plugins.'
   }
 
   const dirty = await git('status', '--porcelain', '--untracked-files=no')
