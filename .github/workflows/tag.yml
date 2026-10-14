@@ -1,0 +1,47 @@
+name: tag
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure SSH tag signing
+        env:
+          TAG_SIGNING_KEY: ${{ secrets.TAG_SIGNING_KEY }}
+        run: |
+          if [ -z "$TAG_SIGNING_KEY" ]; then
+            echo "TAG_SIGNING_KEY secret is not set; refusing to publish an unsigned tag"; exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "$TAG_SIGNING_KEY" > ~/.ssh/tag_signing
+          chmod 600 ~/.ssh/tag_signing
+          git config user.name "tutien-release"
+          git config user.email "release@tutien"
+          git config gpg.format ssh
+          git config user.signingkey ~/.ssh/tag_signing
+
+      - name: Tag the merge with the next patch version
+        run: |
+          if git describe --exact-match --tags HEAD 2>/dev/null; then
+            echo "HEAD already tagged"; exit 0
+          fi
+          latest=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          if [ -z "$latest" ]; then
+            next=v0.1.0
+          else
+            IFS=. read -r major minor patch <<< "${latest#v}"
+            next="v$major.$minor.$((patch + 1))"
+          fi
+          git tag -s "$next" -m "$next"
+          git push origin "$next"
+          echo "Tagged $next"

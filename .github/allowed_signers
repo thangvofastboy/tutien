@@ -1,0 +1,2 @@
+# Release signing keys trusted by /tutien update (format: see ssh-keygen ALLOWED SIGNERS).
+# Add one line: release@tutien namespaces="git" <public key from tag_signing.pub>
