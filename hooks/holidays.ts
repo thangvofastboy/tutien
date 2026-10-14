@@ -12,10 +12,19 @@ const FIXED: { key: string; name: string; md: string[] }[] = [
   { key: 'quoc-khanh', name: 'Quốc Khánh', md: ['09-01', '09-02'] },
 ]
 
-// Bảng tra âm lịch: mùng 1 Tết (5 ngày) và Giỗ Tổ 10/3 âm lịch, theo dương lịch.
+// Bảng tra âm lịch (giờ Việt Nam, UTC+7): mùng 1 Tết (5 ngày) và Giỗ Tổ 10/3 âm lịch, theo dương lịch.
+// Tính bằng thuật toán âm lịch Hồ Ngọc Đức. Năm 2030 Tết ở Việt Nam là 02-02, sớm hơn Trung Quốc một ngày.
 export const LUNAR: Record<number, { tet?: string; gioTo?: string }> = {
   2026: { tet: '2026-02-17', gioTo: '2026-04-26' },
-  2027: { tet: '2027-02-06' },
+  2027: { tet: '2027-02-06', gioTo: '2027-04-16' },
+  2028: { tet: '2028-01-26', gioTo: '2028-04-04' },
+  2029: { tet: '2029-02-13', gioTo: '2029-04-23' },
+  2030: { tet: '2030-02-02', gioTo: '2030-04-12' },
+  2031: { tet: '2031-01-23', gioTo: '2031-04-01' },
+  2032: { tet: '2032-02-11', gioTo: '2032-04-19' },
+  2033: { tet: '2033-01-31', gioTo: '2033-04-09' },
+  2034: { tet: '2034-02-19', gioTo: '2034-04-28' },
+  2035: { tet: '2035-02-08', gioTo: '2035-04-17' },
 }
 
 const addDays = (iso: string, n: number) => new Date(Date.parse(iso) + n * 86_400_000).toISOString().slice(0, 10)
