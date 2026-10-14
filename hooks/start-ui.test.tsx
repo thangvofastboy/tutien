@@ -14,5 +14,6 @@ test('pane Cài đặt vẽ được trên terminal với các Select', async ($
   const ui = await $.ui.mount({ plugin: 'tutien', surface: 'terminal', component: 'Pane', requestId: 'tu-tien-settings', props: { title: 'Cài đặt', bodyColumns: 80 } } as any)
   expect(await ui.find({ type: 'Select', key: 'tutien.display' })).toBeDefined()
   expect(await ui.find({ type: 'Select', key: 'tutien.band' })).toBeDefined()
+  expect(await ui.find({ type: 'Select', key: 'tutien.panelbg' })).toBeDefined()
   await ui.unmount()
 })

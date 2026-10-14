@@ -2,6 +2,12 @@ name = "tutien"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 
+# Ảnh nhân vật cho trang web (spec 26): phục vụ ở /realms/<lớp>/<giới>/NN.png
+[assets]
+directory = "../assets"
+binding = "ASSETS"
+run_worker_first = true
+
 [[durable_objects.bindings]]
 name = "PLAYER"
 class_name = "PlayerDO"

@@ -1,9 +1,9 @@
 import { expect, test } from 'claude-code/testing'
-import { SETTINGS, isValidSetting, withDefaults } from './settings'
+import { SETTINGS, PANEL_BG, isValidSetting, withDefaults } from './settings'
 
 test('có đủ các mục cài đặt, mỗi mục có nhãn tiếng Việt, lựa chọn và mặc định hợp lệ', () => {
   const keys = SETTINGS.map(s => s.key)
-  for (const k of ['tutien.display', 'tutien.autoupdate', 'tutien.statusline', 'tutien.band', 'tutien.effects', 'tutien.persona']) {
+  for (const k of ['tutien.display', 'tutien.autoupdate', 'tutien.statusline', 'tutien.band', 'tutien.effects', 'tutien.persona', 'tutien.panelbg']) {
     expect(keys.includes(k)).toBe(true)
   }
   for (const s of SETTINGS) {
@@ -23,4 +23,12 @@ test('điền mặc định cho mục chưa đặt và bỏ giá trị không h�
   expect(v['tutien.display']).toBe('image')
   expect(v['tutien.band']).toBe('on')
   expect(v['tutien.statusline']).toBe('on')
+})
+
+test('màu nền panel: mặc định theo terminal (không tô), các màu khác là mã hex', () => {
+  expect(withDefaults({})['tutien.panelbg']).toBe('terminal')
+  expect(PANEL_BG.terminal).toBeUndefined()
+  expect(PANEL_BG.ink).toMatch(/^#[0-9a-f]{6}$/)
+  expect(isValidSetting('tutien.panelbg', 'navy')).toBe(true)
+  expect(isValidSetting('tutien.panelbg', '#ff0000')).toBe(false)
 })

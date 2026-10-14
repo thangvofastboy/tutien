@@ -5,9 +5,12 @@ import { callServer, SERVER } from './api'
 import { CLASSES, GENDERS } from './rules'
 import { HELP, tokens, parseRegister, parseReset, formatTop } from './commands'
 import { statusText } from './display'
-import { refreshPane, renderPane, renderBand, renderSettings, renderStart, startWizard, registerPlayer, setPlayer, PANE_ID, SETTINGS_ID, START_ID } from './pane'
+import { refreshPane, renderPane, renderBand, renderSettings, renderStart, startWizard, submitWizardName, logGreeting, registerPlayer, setPlayer, PANE_ID, SETTINGS_ID, START_ID } from './pane'
 import { PERSONAS, personaById, buildPersonaPrompt, parsePersonaLines } from './persona'
 import { PROLOGUE, unlockedChapters } from './story'
+import { startWeb, stopWeb } from './web'
+import { runMore, statusText as fullStatus, extraBoards, MORE_HELP } from './more'
+import { loadAccount, sessionNotes, breakReminder, reconcile, personaSection } from './session'
 
 const USAGE = 'Usage: /tutien update | autoupdate on|off'
 
@@ -34,9 +37,17 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: SETTINGS_ID }, async ($, e) => renderSettings($, e))
   on('ui.render', { component: 'Pane', requestId: START_ID }, async ($, e) => renderStart($, e))
 
+  // Persona cho Claude (bật trong cài đặt): thêm một đoạn cuối system prompt.
+  on('prompt.compose', async ($, e, next) => {
+    const out = await next(e)
+    const text = await personaSection($)
+    return text ? { sections: [...out.sections, { id: 'tutien:persona', text, scope: 'session' as const }] } : out
+  })
+
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     await recordTurn($, e.turnId, e.usage)
+    await breakReminder($)
     return result
   })
 
@@ -58,9 +69,13 @@ export const register: Register = on => {
       version = versionFromManifest(String(manifest))
     }
     await $.store.set('tutien.version', version)
+    await loadAccount($)
     if ((await $.store.get('tutien.autoupdate')) === 'on') await runUpdate($)
     await flushUsage($)
     await refreshPane($)
+    await logGreeting($)
+    await sessionNotes($)
+    void reconcile($).catch(() => null) // chạy nền, không chặn mở phiên
 
     return next(e)
   })
@@ -69,7 +84,7 @@ export const register: Register = on => {
     const [sub = '', ...rest] = tokens(e.args)
     const tail = e.args.trim().slice(sub.length).trim()
     switch (sub) {
-      case 'help': case '': return { text: HELP }
+      case 'help': case '': return { text: `${HELP}\n\nMở rộng:\n${MORE_HELP}` }
       case 'update': return { text: await runUpdate($) }
       case 'autoupdate': {
         const v = parseAutoUpdate(rest.join(' '))
@@ -82,6 +97,7 @@ export const register: Register = on => {
         if (!r) return { text: 'Dùng: /tutien register <tên> <lớp> <giới>' }
         return { text: (await registerPlayer($, r)).text }
       }
+      case 'ten': return { text: await submitWizardName($, tail) }
       case 'start': case 'batdau': {
         await startWizard($)
         return { text: 'Bắt đầu hành trình tu tiên. Làm theo các bước trong pane.' }
@@ -93,7 +109,7 @@ export const register: Register = on => {
         }
         const res = await callServer($, '/appearance', { cls, gender })
         if (res.ok) await refreshPane($)
-        return { text: res.upgrade ? 'Bản mod đã cũ. Chạy /tutien update.' : res.ok ? `Đã đổi thành ${cls}, ${gender}.` : 'Chưa ghi danh, hoặc server không phản hồi.' }
+        return { text: res.upgrade ? 'Server chưa nhận phiên bản mod này. Chạy /tutien update; nếu đã mới nhất, chờ admin đăng ký phiên bản.' : res.ok ? `Đã đổi thành ${cls}, ${gender}.` : 'Chưa ghi danh, hoặc server không phản hồi.' }
       }
       case 'reset': {
         const r = parseReset(tail)
@@ -121,6 +137,7 @@ export const register: Register = on => {
         if (!p) return { text: `Dùng: /tutien persona <${PERSONAS.map(x => x.id).join('|')}|tuy-chinh>` }
         await $.store.set('tutien.persona', p.id)
         await $.store.set('tutien.personaLines', null)
+        await callServer($, '/profile', { persona: p.name }).catch(() => null)
         return { text: `Tính cách: ${p.name}. ${p.catchphrase}` }
       }
       case 'truyen': {
@@ -135,6 +152,13 @@ export const register: Register = on => {
         await $.store.set('tutien.key', res.data.key)
         return { text: 'Đã đổi khóa. Khóa cũ không còn dùng được.' }
       }
+      case 'web': {
+        if ((rest[0] ?? '').trim() === 'stop') return { text: (await stopWeb()) ? 'Đã tắt mini web.' : 'Mini web chưa chạy.' }
+        const res = await callServer<{ player: any }>($, '/me').catch(() => undefined)
+        const out = await startWeb($, res?.ok ? res.data?.player : undefined)
+        if (out.ok) await refreshPane($) // ghi lại trạng thái kèm bảng xếp hạng cho trang
+        return { text: out.text }
+      }
       case 'setting': case 'caidat': {
         await $.ui.open({ id: SETTINGS_ID, title: 'Cài đặt Tu Tiên' })
         return { text: 'Đã mở cài đặt.' }
@@ -148,21 +172,20 @@ export const register: Register = on => {
         return { text: `Chế độ hiển thị: ${mode}. Mở lại pane để xem.` }
       }
       case 'status': case 's': {
-        const res = await callServer<{ player: any }>($, '/me')
-        if (!res.ok || !res.data) return { text: 'Chưa ghi danh, hoặc server không phản hồi.' }
-        return { text: statusText(res.data.player, Date.now()) }
+        return { text: await fullStatus($) }
       }
       case 'top': case 't': {
         const me = ((await $.store.get('tutien.name')) as string) ?? ''
         const sections: string[] = []
         for (const [board, title] of [['tu-vi', 'Tu vi'], ['chamchi', 'Chăm chỉ'], ['tuan', 'Tuần này'], ['phoenix', 'Phượng hoàng'], ['phapbao', 'Pháp bảo']] as const) {
-          const res = await $.http.fetch(`${SERVER}/leaderboard?board=${board}`, { method: 'GET' })
+          const res = await $.http.fetch(`${SERVER}/leaderboard?board=${board}&me=${encodeURIComponent(me)}`, { method: 'GET' })
           if (!res.ok) { sections.push(`— ${title} —\nKhông lấy được bảng này (${res.status}).`); continue }
           sections.push(formatTop(title, JSON.parse(res.text).rows, me))
         }
+        sections.push(...(await extraBoards($, me, (await $.store.get('tutien.realm')) as number | undefined)))
         return { text: sections.join('\n\n') }
       }
-      default: return { text: HELP }
+      default: return { text: (await runMore($, sub, rest, tail)) ?? `${HELP}\n\nMở rộng:\n${MORE_HELP}` }
     }
   })
 }
@@ -184,16 +207,17 @@ export async function runUpdate($: any): Promise<string> {
 
   const dirty = await git('status', '--porcelain', '--untracked-files=no')
   if (dirty.stdout.trim()) {
-    return `Local changes in ${root}; commit or stash them first:\n${dirty.stdout}`
+    return `Bản clone ở ${root} có thay đổi chưa commit; commit hoặc stash trước khi cập nhật:\n${dirty.stdout}`
   }
 
   // No --force: a remote cannot silently move a tag this clone already has.
   const fetched = await git('fetch', '--tags', 'origin')
-  if (fetched.exitCode !== 0) return `git fetch failed:\n${fetched.stderr}`
+  if (fetched.exitCode !== 0) return `Không tải được tag từ GitHub (git fetch lỗi):\n${fetched.stderr}`
 
   const tags = await git('tag', '-l', 'v*', '--sort=-v:refname')
-  const latest = tags.stdout.split('\n')[0]?.trim()
-  if (!latest) return 'No v* tag on origin yet.'
+  // Chỉ xét tag phát hành dạng vX.Y.Z; tag thử nghiệm (v1.2.0-rc1) không chặn việc cập nhật.
+  const latest = tags.stdout.split('\n').map((t: string) => t.trim()).find((t: string) => /^v\d+\.\d+\.\d+$/.test(t))
+  if (!latest) return 'Chưa có bản phát hành nào (tag vX.Y.Z) trên GitHub.'
 
   // The signer list is read from the checkout we are on now, before switching,
   // so a tampered remote cannot also swap the key it is checked against.
@@ -206,14 +230,14 @@ export async function runUpdate($: any): Promise<string> {
   )
   // Some git versions exit 0 for a valid signature from an unlisted key; reject it explicitly.
   if (verified.exitCode !== 0 || verified.stderr.includes('No principal matched')) {
-    return `Tag ${latest} is not signed by a trusted release key; not updating.\n${verified.stderr}`
+    return `Tag ${latest} không được ký bởi khóa phát hành tin cậy; không cập nhật.\n${verified.stderr}`
   }
 
   // The signature covers the tag object, not the ref name: a ref v9.9.9 pointing at an old signed
   // v1.0.0 object verifies fine. Require the signed name to match the ref we are about to trust.
   const signedName = /^tag (.+)$/m.exec((await git('cat-file', 'tag', latest)).stdout)?.[1]?.trim()
   if (signedName !== latest) {
-    return `Tag ${latest} does not match the signed tag name (${signedName ?? 'none'}); not updating.`
+    return `Tag ${latest} không khớp tên tag đã ký (${signedName ?? 'không có'}); không cập nhật.`
   }
 
   const head = (await git('rev-parse', 'HEAD')).stdout.trim()
@@ -221,19 +245,19 @@ export async function runUpdate($: any): Promise<string> {
   // Fail closed: refuse any tag not newer than the version this checkout is built from.
   const current = await git('describe', '--tags', '--abbrev=0', 'HEAD')
   if (current.exitCode !== 0 || !current.stdout.trim()) {
-    return 'Cannot determine the current version; not updating.'
+    return 'Không xác định được phiên bản hiện tại; không cập nhật.'
   }
   if (head !== target && compareVersions(latest, current.stdout.trim()) <= 0) {
-    return `${latest} is older than the current build (${current.stdout.trim()}); not rolling back.`
+    return `${latest} cũ hơn bản đang chạy (${current.stdout.trim()}); không hạ phiên bản.`
   }
 
-  if (head === target) return `Already at ${latest}.`
+  if (head === target) return `Đã ở bản mới nhất ${latest}.`
 
   const out = await git('checkout', '--detach', latest)
-  if (out.exitCode !== 0) return `git checkout ${latest} failed:\n${out.stderr}`
+  if (out.exitCode !== 0) return `Không chuyển sang ${latest} được (git checkout lỗi):\n${out.stderr}`
 
   // Reload only after a real checkout, so autoupdate on session start does not reload every time.
   // Runs after this hook returns: $.command.run rejects inside a hook the turn waits on.
   $.clock.after(0, () => void $.command.run({ command: 'reload-plugins' }))
-  return `Updated to ${latest}; reloading plugins.`
+  return `Đã cập nhật lên ${latest}; đang nạp lại plugin.`
 }

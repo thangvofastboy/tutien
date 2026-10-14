@@ -14,24 +14,26 @@ export function typeStep(full: string, shownCount: number, reduced: boolean): { 
 export const auraFrame = (tick: number) => (tick % 3) + 1
 
 // Hiệu ứng thiên phạt theo sự kiện của server (spec 14).
-export function tribEffect(event: string): { kind: 'lightning' | 'gold' | 'rain' | 'red'; ms: number } | null {
+export function tribEffect(event: string): { kind: 'lightning' | 'gold' | 'rain' | 'red' | 'tamma'; ms: number } | null {
   switch (event) {
     case 'tribulation-started': return { kind: 'lightning', ms: 4000 }
     case 'breakthrough': return { kind: 'gold', ms: 1500 }
     case 'tribulation-failed': return { kind: 'rain', ms: 3000 }
     case 'death': return { kind: 'red', ms: 1000 }
+    case 'tamma': return { kind: 'tamma', ms: 3000 }
     default: return null
   }
 }
 
 // Khung hình chữ cho overlay: nhịp đổi theo tick (mỗi 250 ms ở pane).
-export function overlayFrame(kind: 'lightning' | 'gold' | 'rain' | 'red', tick: number): string {
+export function overlayFrame(kind: 'lightning' | 'gold' | 'rain' | 'red' | 'tamma', tick: number): string {
   const t = tick % 4
   switch (kind) {
     case 'lightning': return ['  ╱╲⚡╱╲  ', ' ⚡ ╲╱ ⚡ ', '  ╲⚡╱   ', ' ⚡╱╲⚡╱  '][t]
     case 'gold': return ['✦ ✧ Đột Phá ✧ ✦', '✧ ✦ Đột Phá ✦ ✧', '✦ ✧ Đột Phá ✧ ✦', '✧ ✦ Đột Phá ✦ ✧'][t]
     case 'rain': return ['ˇ  ˇ  ˇ  ˇ', ' ˇ  ˇ  ˇ  ˇ', 'ˇ  ˇ  ˇ  ˇ ', ' ˇ  ˇ  ˇ  ˇ'][t]
     case 'red': return ['✖ Đan Điền Vỡ ✖', '✖ Đan Điền Vỡ ✖', '  ✖ Vỡ ✖  ', '✖ Đan Điền Vỡ ✖'][t]
+    case 'tamma': return ['👹 Tâm Ma Trễ Deadline', '  👹 Tâm Ma Trễ Deadline', '👹 Tâm Ma Trễ Deadline  ', ' 👹 Tâm Ma Trễ Deadline '][t]
   }
 }
 

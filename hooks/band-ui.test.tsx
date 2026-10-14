@@ -6,3 +6,10 @@ test('khung chữ nhỏ phía trên ô nhập vẽ được, chưa ghi danh thì
   expect(await ui.find({ type: 'Text', text: /Chưa ghi danh/ })).toBeDefined()
   await ui.unmount()
 })
+
+test('khung chữ nhỏ cũng vẽ được trên Claude Code Desktop', async ($, on) => {
+  mock.store(on)
+  const ui = await $.ui.mount({ plugin: 'tutien', surface: 'desktop', component: 'AbovePrompt', requestId: 'tu-tien-band', props: { bodyColumns: 80 } } as any)
+  expect(await ui.find({ type: 'Text', text: /Chưa ghi danh/ })).toBeDefined()
+  await ui.unmount()
+})

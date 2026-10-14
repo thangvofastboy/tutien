@@ -3,6 +3,7 @@ import { CLASSES, GENDERS } from './rules'
 
 export const HELP = [
   '/tutien start                          bắt đầu: câu chuyện và tạo nhân vật',
+  '/tutien ten <đạo hiệu>                 đặt tên trong /tutien start (app điện thoại)',
   '/tutien register <tên> <lớp> <giới>   ghi danh',
   '/tutien appearance <lớp> <giới>        đổi lớp và giới',
   '/tutien reset confirm <lớp> <giới>     làm lại từ đầu',
@@ -15,6 +16,7 @@ export const HELP = [
   '/tutien khoa-moi                       đổi khóa bí mật khi nghi bị lộ',
   '/tutien update                         cập nhật bản đã ký mới nhất',
   '/tutien setting                        mở pane cài đặt',
+  '/tutien web [stop]                     mở mini web http://127.0.0.1:7340',
   '/tutien help                           danh sách này',
 ].join('\n')
 
@@ -45,11 +47,16 @@ export function parseReset(args: string): { confirm: boolean; cls: string | null
 }
 
 // Bảng công khai: tối đa 10 dòng, và luôn có dòng hạng của người xem (spec 16).
+// Đơn vị điểm của từng bảng: phần trăm (Tu vi, Chăm chỉ, Tuần này) hoặc số đếm.
+export const SCORE_UNIT: Record<string, string> = { 'Tu vi': '%', 'Chăm chỉ': '%', 'Tuần này': '%', 'Phượng hoàng': ' lần chết', 'Pháp bảo': ' pháp bảo' }
+
 export function formatTop(title: string, rows: { rank: number; name: string; cls: string; realm: number; score: number }[], me: string): string {
   const head = `— ${title} —`
-  const lines = rows.slice(0, 10).map(r => `${r.rank}. ${r.name} · ${r.cls} · bậc ${r.realm} · ${r.score}`)
-  const mine = rows.find(r => r.name === me)
+  const unit = SCORE_UNIT[title] ?? ''
+  const line = (r: { rank: number; name: string; cls: string; realm: number; score: number }) => `${r.rank}. ${r.name} · ${r.cls} · bậc ${r.realm} · ${r.score}${unit}`
+  const lines = rows.filter(r => r.rank <= 10).slice(0, 10).map(line)
+  const mine = rows.find(r => r.name.toLowerCase() === me.toLowerCase())
   if (rows.length === 0) return `${head}\nChưa có ai tu luyện.`
-  const footer = mine && mine.rank > 10 ? `\n… bạn đứng hạng ${mine.rank}` : ''
+  const footer = mine && mine.rank > 10 ? `\n…\n${line(mine)}  ← bạn` : ''
   return [head, ...lines].join('\n') + footer
 }
