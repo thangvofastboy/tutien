@@ -12,3 +12,11 @@ test('autoupdate chỉ bật khi người chơi gõ on', () => {
   expect(parseAutoUpdate('bật')).toBe(null)
   expect(parseAutoUpdate('')).toBe(null)
 })
+
+import { versionFromManifest } from './version'
+
+test('bản cài từ marketplace (không có git): lấy phiên bản từ plugin.json, dạng v<số>', () => {
+  expect(versionFromManifest('{"name":"tutien","version":"0.1.0"}')).toBe('v0.1.0')
+  expect(versionFromManifest('{"name":"tutien"}')).toBe('')
+  expect(versionFromManifest('không phải json')).toBe('')
+})
