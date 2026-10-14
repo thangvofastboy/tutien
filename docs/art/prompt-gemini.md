@@ -5,7 +5,7 @@
 1. Mở một cuộc trò chuyện **mới** trong Gemini, dành riêng cho bộ ảnh này.
 2. Dán toàn bộ **Prompt chính** (mục A) vào tin nhắn đầu tiên.
 3. Gemini mạnh ở **sửa ảnh có sẵn**. Vì vậy quy trình là: vẽ một ảnh gốc cho mỗi lớp, rồi tạo các bậc bằng cách **sửa ảnh gốc** (thêm hào quang, thêm trang trí). Cách này giữ nhân vật nhất quán hơn vẽ lại từ đầu.
-4. Mỗi lần chỉ yêu cầu **một ảnh**. Tải về, đặt tên đúng như cột `file` trong `docs/art/realm-prompts.csv`.
+4. Mỗi lần chỉ yêu cầu **một ảnh**. AI tự đặt tên file theo quy tắc trong prompt (ví dụ `kiem-tu_nam_07.png`).
 5. Luôn sửa từ **ảnh bậc 1** của lớp đó, không sửa nối tiếp từ ảnh bậc trước, để lỗi không cộng dồn.
 
 ---
@@ -51,10 +51,21 @@ Stages: early = faint thin aura; middle = clearly visible aura; late = bright st
 31–33 Tiên Đế: glowing golden crown on the head and brilliant golden rays; divine outfit. Realm 33 is the most impressive image in the set.
 The aura stays inside the canvas and never touches the edges.
 
+FILE OUTPUT RULES
+- Every image is delivered as its own separate PNG file. Never combine several sprites into one image or a sprite sheet.
+- File names use only lowercase ASCII letters, digits, hyphens and underscores. No spaces, no Vietnamese accents.
+- Character sprites: <class>_<gender>_<NN>.png
+  - <class> is one of: kiem-tu, dan-su, tran-phap-su, luyen-khi-su, phu-tu, the-tu, ma-tu
+  - <gender> is nam (male) or nu (female)
+  - <NN> is the realm number with two digits: 01 to 33
+  - Examples: kiem-tu_nam_01.png, phu-tu_nu_07.png, ma-tu_nam_33.png
+- Demon sprites: tam-ma_1.png, tam-ma_2.png, tam-ma_3.png
+- When I write "PACKAGE", collect every image you created in this conversation, name each one by these rules, put them all into one ZIP file named tutien-art.zip (flat, no folders inside), and give me the ZIP file to download. Also list the file names included and any that are missing from the full set (7 classes × 2 genders × 33 realms = 462 sprites, plus 3 demon frames).
+
 COMMANDS I WILL USE
 - "BASE <class> <gender>": create the realm-1 sprite for that class and gender from scratch.
 - "EDIT TO REALM <number>" with a base image attached: edit the attached image only by adding that realm's aura, stage brightness and outfit detail. Do not change the face, hair, pose, palette, prop, framing or background.
-After each image, write one short line: class, gender, realm.
+After each image, write one short line with its file name, for example: kiem-tu_nam_07.png.
 
 Reply "Ready" and list the 7 classes in one line. Do not create an image yet.
 ```
@@ -75,7 +86,7 @@ BASE Thể Tu male
 BASE Ma Tu male
 ```
 
-Lưu thành `assets/realms/<lớp>/Nam/01.png`.
+Mỗi ảnh là một file riêng, ví dụ `kiem-tu_nam_01.png`.
 
 ## C. Giai đoạn 2: 7 nhân vật gốc (Nữ)
 
@@ -85,7 +96,7 @@ Lưu thành `assets/realms/<lớp>/Nam/01.png`.
 Edit the attached sprite into the female version of the same class: change only body shape and hairstyle to female. Keep outfit, prop, palette, aura, pose, framing and the #00FF00 background exactly the same.
 ```
 
-Lưu thành `assets/realms/<lớp>/Nữ/01.png`.
+Ví dụ tên file: `kiem-tu_nu_01.png`.
 
 ## D. Giai đoạn 3: các bậc 2 đến 33 (sửa từ ảnh bậc 1)
 
@@ -95,7 +106,7 @@ Lưu thành `assets/realms/<lớp>/Nữ/01.png`.
 EDIT TO REALM 7
 ```
 
-Đổi số bậc từ 2 đến 33. Luôn đính kèm ảnh **bậc 1**, không dùng ảnh bậc trước. Lưu thành `assets/realms/<lớp>/<giới>/NN.png` (ví dụ `07.png`).
+Đổi số bậc từ 2 đến 33. Luôn đính kèm ảnh **bậc 1**, không dùng ảnh bậc trước. Tên file ví dụ: `kiem-tu_nam_07.png` (bậc hai chữ số).
 
 **Khi Gemini sửa quá tay** (đổi mặt, đổi màu áo): gửi `Undo that. Only add the aura and small outfit trims; keep everything else identical to the attached image.`
 
@@ -107,7 +118,25 @@ Subject: "Tâm Ma Trễ Deadline", a large shadowy smoke demon that represents p
 This is frame 1: faint, just appearing.
 ```
 
-Sau đó đính kèm ảnh vừa tạo và gửi `Edit to frame 2: fully visible and laughing.`, rồi `Edit to frame 3: leaning forward menacingly.` Lưu thành `assets/tamma/1.png`, `2.png`, `3.png`.
+Sau đó đính kèm ảnh vừa tạo và gửi `Edit to frame 2: fully visible and laughing.`, rồi `Edit to frame 3: leaning forward menacingly.` Tên file: `tam-ma_1.png`, `tam-ma_2.png`, `tam-ma_3.png`.
+
+## F0. Đóng gói và gửi cho tôi
+
+Khi đã vẽ xong (hoặc muốn gửi một phần), gửi đúng một chữ:
+
+```
+PACKAGE
+```
+
+AI sẽ gom mọi ảnh đã vẽ trong cuộc trò chuyện vào **một file `tutien-art.zip`** (phẳng, không thư mục con), kèm danh sách file có trong zip và các file còn thiếu. Bạn tải file zip về và gửi cho tôi, tôi sẽ chạy:
+
+```
+python3 scripts/import_art.py tutien-art.zip
+```
+
+Script giải nén, đặt từng file vào đúng thư mục `assets/realms/<lớp>/<giới>/NN.png` và `assets/tamma/N.png`, rồi báo file nào sai tên hoặc còn thiếu.
+
+**Nếu AI không tạo được file zip** (một số phiên bản chỉ trả ảnh, không tạo file): tải từng ảnh về, giữ đúng tên file, rồi tự nén thành `tutien-art.zip`. Script vẫn xử lý được.
 
 ## F. Kiểm tra trước khi gửi cho tôi
 

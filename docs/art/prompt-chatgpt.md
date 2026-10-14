@@ -5,7 +5,7 @@
 1. Mở một cuộc trò chuyện **mới** trong ChatGPT, dành riêng cho bộ ảnh này.
 2. Dán toàn bộ **Prompt chính** (mục A) vào tin nhắn đầu tiên. ChatGPT sẽ ghi nhớ quy tắc cho cả cuộc trò chuyện.
 3. Làm theo **Giai đoạn 1** (7 nhân vật gốc), rồi **Giai đoạn 2** (giới Nữ), rồi **Giai đoạn 3** (các bậc).
-4. Mỗi lần chỉ yêu cầu **một ảnh**. Tải ảnh về, đặt tên đúng như cột `file` trong `docs/art/realm-prompts.csv`.
+4. Mỗi lần chỉ yêu cầu **một ảnh**. AI tự đặt tên file theo quy tắc trong prompt (ví dụ `kiem-tu_nam_07.png`).
 5. Nếu ảnh lệch phong cách hoặc khác nhân vật, gửi: `Regenerate. Keep the exact same character, palette, pose and green background.`
 
 ---
@@ -59,10 +59,21 @@ Realm number → major realm → aura → outfit detail:
 
 The aura must stay inside the 96x96 canvas and must not touch the edges.
 
+FILE OUTPUT RULES
+- Every image is delivered as its own separate PNG file. Never combine several sprites into one image or a sprite sheet.
+- File names use only lowercase ASCII letters, digits, hyphens and underscores. No spaces, no Vietnamese accents.
+- Character sprites: <class>_<gender>_<NN>.png
+  - <class> is one of: kiem-tu, dan-su, tran-phap-su, luyen-khi-su, phu-tu, the-tu, ma-tu
+  - <gender> is nam (male) or nu (female)
+  - <NN> is the realm number with two digits: 01 to 33
+  - Examples: kiem-tu_nam_01.png, phu-tu_nu_07.png, ma-tu_nam_33.png
+- Demon sprites: tam-ma_1.png, tam-ma_2.png, tam-ma_3.png
+- When I write "PACKAGE", collect every image you created in this conversation, name each one by these rules, put them all into one ZIP file named tutien-art.zip (flat, no folders inside), and give me the ZIP file to download. Also list the file names included and any that are missing from the full set (7 classes × 2 genders × 33 realms = 462 sprites, plus 3 demon frames).
+
 WORKFLOW
 - When I write "BASE <class> <gender>", draw the realm-1 character of that class and gender. This becomes the reference for that class.
 - When I write "REALM <number> <class> <gender>" and attach the base image, draw the same character at that realm, using the aura and outfit detail from the table.
-- Always reply with exactly one image and one short line stating the class, gender and realm you drew.
+- Always reply with exactly one image and one short line with its file name, for example: kiem-tu_nam_07.png.
 
 Confirm you understand by replying "Ready" and listing the 7 classes in one line. Do not draw anything yet.
 ```
@@ -83,7 +94,7 @@ BASE Thể Tu male
 BASE Ma Tu male
 ```
 
-Lưu từng ảnh thành `assets/realms/<lớp>/Nam/01.png`. Đây là ảnh chuẩn của lớp, mọi ảnh sau phải giống nhân vật này.
+Mỗi ảnh là một file riêng, tên theo quy tắc, ví dụ `kiem-tu_nam_01.png`. Đây là ảnh chuẩn của lớp, mọi ảnh sau phải giống nhân vật này.
 
 ## C. Giai đoạn 2: 7 nhân vật gốc (Nữ)
 
@@ -93,7 +104,7 @@ Lưu từng ảnh thành `assets/realms/<lớp>/Nam/01.png`. Đây là ảnh chu
 BASE Kiếm Tu female. Use the attached male version as the class reference: same outfit, prop, palette and aura; change only body shape and hairstyle to female.
 ```
 
-Lặp lại cho 6 lớp còn lại. Lưu thành `assets/realms/<lớp>/Nữ/01.png`.
+Lặp lại cho 6 lớp còn lại. Ví dụ tên file: `kiem-tu_nu_01.png`.
 
 ## D. Giai đoạn 3: các bậc 2 đến 33
 
@@ -103,7 +114,7 @@ Lặp lại cho 6 lớp còn lại. Lưu thành `assets/realms/<lớp>/Nữ/01.p
 REALM 7 Kiếm Tu male
 ```
 
-Đổi số bậc từ 2 đến 33. Mỗi lớp và mỗi giới cần 32 ảnh. Lưu thành `assets/realms/<lớp>/<giới>/NN.png` (NN hai chữ số, ví dụ `07.png`).
+Đổi số bậc từ 2 đến 33. Mỗi lớp và mỗi giới cần 32 ảnh. Tên file ví dụ: `kiem-tu_nam_07.png` (bậc hai chữ số).
 
 **Mẹo giữ nhất quán:** cứ khoảng 10 ảnh, đính kèm lại ảnh bậc 1 và nhắc: `Same character as the attached base image.`
 
@@ -115,7 +126,25 @@ Subject: "Tâm Ma Trễ Deadline", a large shadowy smoke demon representing proc
 Frame 1: faint and just appearing.
 ```
 
-Sau đó gửi `Same demon, frame 2: fully visible and laughing.` và `Same demon, frame 3: leaning forward menacingly.` Lưu thành `assets/tamma/1.png`, `2.png`, `3.png`.
+Sau đó gửi `Same demon, frame 2: fully visible and laughing.` và `Same demon, frame 3: leaning forward menacingly.` Tên file: `tam-ma_1.png`, `tam-ma_2.png`, `tam-ma_3.png`.
+
+## F0. Đóng gói và gửi cho tôi
+
+Khi đã vẽ xong (hoặc muốn gửi một phần), gửi đúng một chữ:
+
+```
+PACKAGE
+```
+
+AI sẽ gom mọi ảnh đã vẽ trong cuộc trò chuyện vào **một file `tutien-art.zip`** (phẳng, không thư mục con), kèm danh sách file có trong zip và các file còn thiếu. Bạn tải file zip về và gửi cho tôi, tôi sẽ chạy:
+
+```
+python3 scripts/import_art.py tutien-art.zip
+```
+
+Script giải nén, đặt từng file vào đúng thư mục `assets/realms/<lớp>/<giới>/NN.png` và `assets/tamma/N.png`, rồi báo file nào sai tên hoặc còn thiếu.
+
+**Nếu AI không tạo được file zip** (một số phiên bản chỉ trả ảnh, không tạo file): tải từng ảnh về, giữ đúng tên file, rồi tự nén thành `tutien-art.zip`. Script vẫn xử lý được.
 
 ## F. Kiểm tra trước khi gửi cho tôi
 
