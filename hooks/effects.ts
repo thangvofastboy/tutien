@@ -23,3 +23,17 @@ export function tribEffect(event: string): { kind: 'lightning' | 'gold' | 'rain'
     default: return null
   }
 }
+
+// Khung hình chữ cho overlay: nhịp đổi theo tick (mỗi 250 ms ở pane).
+export function overlayFrame(kind: 'lightning' | 'gold' | 'rain' | 'red', tick: number): string {
+  const t = tick % 4
+  switch (kind) {
+    case 'lightning': return ['  ╱╲⚡╱╲  ', ' ⚡ ╲╱ ⚡ ', '  ╲⚡╱   ', ' ⚡╱╲⚡╱  '][t]
+    case 'gold': return ['✦ ✧ Đột Phá ✧ ✦', '✧ ✦ Đột Phá ✦ ✧', '✦ ✧ Đột Phá ✧ ✦', '✧ ✦ Đột Phá ✦ ✧'][t]
+    case 'rain': return ['ˇ  ˇ  ˇ  ˇ', ' ˇ  ˇ  ˇ  ˇ', 'ˇ  ˇ  ˇ  ˇ ', ' ˇ  ˇ  ˇ  ˇ'][t]
+    case 'red': return ['✖ Đan Điền Vỡ ✖', '✖ Đan Điền Vỡ ✖', '  ✖ Vỡ ✖  ', '✖ Đan Điền Vỡ ✖'][t]
+  }
+}
+
+// Hiệu ứng còn hiệu lực tại thời điểm now (until là mốc kết thúc, không tính).
+export const effectActive = (e: { kind: string; until: number } | null, now: number) => !!e && now < e.until
