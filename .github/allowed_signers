@@ -1,2 +1,2 @@
-# Release signing keys trusted by /tutien update (format: see ssh-keygen ALLOWED SIGNERS).
-# Add one line: release@tutien namespaces="git" <public key from tag_signing.pub>
+# Khóa ký tag phát hành (spec 21.5). Định dạng: ssh-keygen ALLOWED SIGNERS.
+release@tutien namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPUOR07iFJD1H9CMLy7kTqXs8Lnn7lGsUP3GMn/qsJhu release@tutien
