@@ -7,6 +7,7 @@ const RUN = {
   presentation: { isFullscreen: false, columns: 80 },
 } as const
 
+const notAncestor = (args: string) => args.startsWith('merge-base')
 const ok = (stdout: string) => ({
   value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
 })
@@ -26,6 +27,7 @@ test('/tutien update checks out the newest tag, then reloads plugins', async ($,
   on('process.run', async ($, e) => {
     const args = e.argv.slice(1).join(' ')
     ran.push(args)
+    if (notAncestor(args)) return { value: { exitCode: 1, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     return ok(GIT[args] ?? '')
   })
   on('command.run', { command: 'reload-plugins' }, async ($, e) => {
@@ -87,5 +89,20 @@ test('/tutien update refuses a tag signed by a key outside the allowed list', as
   const { text } = await $.command.run(RUN)
 
   expect(text).toContain('not signed by a trusted release key')
+  expect(ran.some(a => a.startsWith('checkout'))).toBe(false)
+})
+
+test('/tutien update refuses to roll back to an older tag', async ($, on) => {
+  const ran: string[] = []
+  on('process.run', async ($, e) => {
+    const args = e.argv.slice(1).join(' ')
+    ran.push(args)
+    if (args.startsWith('merge-base')) return { value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    return ok(GIT[args] ?? '')
+  })
+
+  const { text } = await $.command.run(RUN)
+
+  expect(text).toContain('older than the current build')
   expect(ran.some(a => a.startsWith('checkout'))).toBe(false)
 })

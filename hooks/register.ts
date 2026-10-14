@@ -54,6 +54,10 @@ export const register: Register = on => {
 
     const head = (await git('rev-parse', 'HEAD')).stdout.trim()
     const target = (await git('rev-parse', `${latest}^{commit}`)).stdout.trim()
+    // A signed but older tag is still a rollback: refuse it, so a replayed old release cannot reintroduce bugs.
+    if (head !== target && (await git('merge-base', '--is-ancestor', target, head)).exitCode === 0) {
+      return { text: `${latest} is older than the current build; not rolling back.` }
+    }
     if (head !== target) {
       const out = await git('checkout', '--detach', latest)
       if (out.exitCode !== 0) return { text: `git checkout ${latest} failed:\n${out.stderr}` }
