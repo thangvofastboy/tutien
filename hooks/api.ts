@@ -8,7 +8,7 @@ export async function callServer<T = any>(
   $: { store: Store; http: Http },
   path: string,
   body?: unknown,
-): Promise<{ ok: boolean; status: number; upgrade?: boolean; data?: T }> {
+): Promise<{ ok: boolean; status: number; upgrade?: boolean; data?: T; error?: string }> {
   const name = (await $.store.get('tutien.name')) as string | undefined
   const key = (await $.store.get('tutien.key')) as string | undefined
   const version = ((await $.store.get('tutien.version')) as string | undefined) ?? ''
@@ -19,13 +19,28 @@ export async function callServer<T = any>(
       authorization: `Bearer ${key}`,
       'content-type': 'application/json',
       'x-tutien-version': version,
+      'x-tutien-account': ((await $.store.get('tutien.account')) as string | undefined) ?? '',
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (res.status === 426) return { ok: false, status: 426, upgrade: true }
-  if (!res.ok) return { ok: false, status: res.status }
+  if (!res.ok) {
+    let error: string | undefined
+    try { error = (JSON.parse(res.text) as { error?: string }).error } catch { /* không phải JSON */ }
+    return { ok: false, status: res.status, error }
+  }
   return { ok: true, status: res.status, data: JSON.parse(res.text) as T }
 }
 
 export const countTokens = (u?: { input_tokens: number; output_tokens: number; cache_creation_input_tokens: number }) =>
-  u ? u.input_tokens + u.output_tokens + u.cache_creation_input_tokens : 0
+  u ? (Number(u.input_tokens) || 0) + (Number(u.output_tokens) || 0) + (Number(u.cache_creation_input_tokens) || 0) : 0
+
+// Mã tài khoản Claude từ ~/.claude.json (oauthAccount.accountUuid). Chỉ gửi mã này, không gửi email.
+export function accountFromConfig(text: string): string {
+  try {
+    const id = (JSON.parse(text) as { oauthAccount?: { accountUuid?: unknown } }).oauthAccount?.accountUuid
+    return typeof id === 'string' && /^[0-9a-f-]{16,64}$/i.test(id) ? id : ''
+  } catch {
+    return ''
+  }
+}

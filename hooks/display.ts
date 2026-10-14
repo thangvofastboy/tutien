@@ -1,7 +1,7 @@
 // hooks/display.ts — hiển thị chỉ bằng phần trăm và thời gian (spec mục 19.2, 19.6)
 import { need, REALM_NAMES, type Player } from './rules'
 
-export const percentExp = (p: Player) => Math.min(100, Math.floor((p.exp / need(p.realm)) * 100))
+export const percentExp = (p: Player) => (p.realm >= 33 ? 100 : Math.min(100, Math.floor((p.exp / need(p.realm)) * 100)))
 
 export const percentTrib = (p: Player, now: number) => {
   if (!p.trib) return 0

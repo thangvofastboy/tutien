@@ -88,10 +88,25 @@ test('thêm bản phát hành mới đẩy bản cũ nhất ra ngoài', () => {
 
 import { MAX_TOKENS_PER_TURN, validTurnId } from './logic.ts'
 
-test('trần token mỗi lượt: phần vượt không được cộng', () => {
+test('lượt vượt trần mỗi lượt bị từ chối cả lượt; đúng trần thì được cộng', () => {
   let st = register('thang', 'Thể Tu', 'Nam', 'h')
   st = handleUsage(st, { turnId: 'big', tokens: 999_000_000 }, NOW, never).state
+  assert.equal(st.lifetimeTokens, 0)
+  assert.equal(st.seen.includes('big'), true)
+  st = handleUsage(st, { turnId: 'ok', tokens: MAX_TOKENS_PER_TURN }, NOW + 60_000, never).state
   assert.equal(st.lifetimeTokens, MAX_TOKENS_PER_TURN)
+})
+
+test('Tuần này tính đúng 7 ngày: hôm nay và 6 ngày trước, không tính ngày thứ 8', () => {
+  let st = register('thang', 'Thể Tu', 'Nam', 'h')
+  for (let d = 7; d >= 0; d--) st = handleUsage(st, { turnId: `w${d}`, tokens: 1000 }, NOW - d * 86_400_000, never).state
+  assert.equal(row(st, NOW).week, 7000)
+})
+
+test('bậc 33 hiện 100% tiến độ, không phải NaN', () => {
+  const st = register('thang', 'Thể Tu', 'Nam', 'h')
+  st.player = { ...st.player, realm: 33, exp: 5 }
+  assert.equal(row(st, NOW).pct, 100)
 })
 
 test('turnId phải là chuỗi ngắn hợp lệ', () => {

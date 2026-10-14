@@ -10,8 +10,9 @@ async function flush($: any): Promise<void> {
   if (q.length === 0) return
   const events: string[] = []
   let latest: any = null
+  const quiet = (await $.store.get('tutien.effects')) === 'off' // tắt hiệu ứng thì không gặp Tâm Ma (spec 27.1)
   const left = await flushQueue(q, async it => {
-    const r = await callServer<{ events?: string[]; player?: any }>($, '/usage', { turnId: it.turnId, tokens: it.tokens })
+    const r = await callServer<{ events?: string[]; player?: any }>($, '/usage', { turnId: it.turnId, tokens: it.tokens, quiet })
     if (r.ok && r.data?.events) events.push(...r.data.events)
     if (r.ok && r.data?.player) latest = r.data.player
     return { ok: r.ok, status: r.status, upgrade: r.upgrade }
@@ -20,7 +21,7 @@ async function flush($: any): Promise<void> {
   await applyEvents($, events)
   await $.store.set(QUEUE, left)
   if (left.length > 0 && (await callServer($, '/me').catch(() => ({ upgrade: false }))).upgrade) {
-    await $.ui.toast('Bản mod đã cũ: chạy /tutien update để tiếp tục nhận EXP.')
+    await $.ui.toast('Server chưa nhận phiên bản mod này: chạy /tutien update. Nếu đã mới nhất, EXP được giữ trong hàng đợi đến khi admin đăng ký phiên bản.')
   }
 }
 

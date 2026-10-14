@@ -1,21 +1,28 @@
 import { atom, read, update } from 'claude-code'
-import { callServer } from './api'
+import { callServer, SERVER } from './api'
 import { statusText, percentExp, stateIcon, toneOf } from './display'
 import { REALM_NAMES, type Player } from './rules'
 import { tribEffect, overlayFrame, effectActive } from './effects'
 import { paneLine } from './persona'
 import { bandLines, classIcon } from './band'
-import { SETTINGS, withDefaults } from './settings'
+import { SETTINGS, PANEL_BG, withDefaults } from './settings'
 import { STEPS, initWizard, advance, type Wizard } from './start'
 import { PROLOGUE, CLASS_ORIGINS, STARTER_QUESTS } from './story'
 import { CLASSES, GENDERS } from './rules'
 import { PERSONAS } from './persona'
-import { SERVER } from './api'
+import { webRunning, writeWebState } from './web'
+import { greetingLines, eventLines } from './chat'
 
 const PANE = 'tu-tien'
-const me = atom({ plugin: 'tutien', key: 'me' } as const, undefined as Player | undefined)
+export const me = atom({ plugin: 'tutien', key: 'me' } as const, undefined as Player | undefined)
 const effect = atom({ plugin: 'tutien', key: 'effect' } as const, null as { kind: string; until: number } | null)
 const tick = atom({ plugin: 'tutien', key: 'tick' } as const, 0)
+// Bảng Tu vi rút gọn cho pane và web mini; làm mới cùng lúc với nhân vật.
+export type BoardRow = { rank: number; name: string; cls: string; realm: number; score: number }
+const board = atom({ plugin: 'tutien', key: 'board' } as const, [] as BoardRow[])
+// Nhiệm vụ ngày, bí cảnh, Tâm Ma, tông (spec 18.4): dòng phụ trong pane.
+type Info = { quest: number; bicanh: string | null; tamma: number | null; tong: string | null }
+const info = atom({ plugin: 'tutien', key: 'info' } as const, null as Info | null)
 const settingsTick = atom({ plugin: 'tutien', key: 'settingsTick' } as const, 0)
 const wizard = atom({ plugin: 'tutien', key: 'wizard' } as const, { step: 0 } as Wizard)
 const wizardError = atom({ plugin: 'tutien', key: 'wizardError' } as const, null as string | null)
@@ -38,13 +45,29 @@ export async function showEffect($: any, kind: string, ms: number): Promise<void
 
 // Nhận sự kiện từ server (/usage) và bật hiệu ứng tương ứng.
 export async function applyEvents($: any, events: string[]): Promise<void> {
+  const chat = (await setting($, 'tutien.chatlines')) !== 'off'
   for (const ev of events) {
     const fx = tribEffect(ev)
     if (fx) await showEffect($, fx.kind, fx.ms)
+    const lines = eventLines(ev, Date.now())
+    if (chat && lines.length) $.ui.log(lines.join('\n'))
   }
 }
 
+// Lời chào khi mở phiên, vài dòng trong khung chat (giống dòng chào của Claude Code).
+export async function logGreeting($: any): Promise<void> {
+  if ((await setting($, 'tutien.chatlines')) === 'off') return
+  const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
+  const p = await read($, me)
+  if (!name || !p) return
+  $.ui.log(greetingLines(name, p, new Date()).join('\n'))
+}
+
 // Ảnh bậc: assets/realms/<lớp>/<giới>/NN-F.png (khung 1). Khung hào quang được chọn theo đồng hồ.
+// Ảnh nhân vật cho bề mặt không có Raster: PNG nhúng trong SVG, giữ nét pixel khi phóng to.
+export const svgSprite = (b64: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="192" height="192"><image href="data:image/png;base64,${b64}" width="96" height="96" style="image-rendering:pixelated"/></svg>`
+
 export const realmImage = (root: string, p: Player) =>
   `${root}/assets/realms/${p.cls}/${p.gender}/${String(p.realm).padStart(2, '0')}.png`
 
@@ -54,6 +77,7 @@ export async function setPlayer($: any, player: Player): Promise<void> {
   await update($, me, () => player)
   await $.store.set('tutien.realm', player.realm)
   await showStatus($, player)
+  if (webRunning()) await writeWebState($, player, await read($, board))
 }
 
 // Dòng trạng thái dưới ô nhập (luôn hiện): tên, cảnh giới, tiến độ hoặc thời gian thiên phạt.
@@ -82,8 +106,27 @@ export async function renderBand($: any, e: any, next: any) {
 }
 
 export async function refreshPane($: any): Promise<void> {
-  const res = await callServer<{ player: Player }>($, '/me').catch(() => undefined)
+  const res = await callServer<{ player: Player; status?: any; social?: any }>($, '/me').catch(() => undefined)
+  if (res?.ok && res.data?.status) {
+    const s = res.data.status
+    await update($, info, () => ({ quest: s.quest?.pct ?? 0, bicanh: s.bicanh ?? null, tamma: s.tamma?.pct ?? null, tong: res.data!.social?.tong?.name ?? null }))
+  }
+  const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
+  const top = await $.http.fetch(`${SERVER}/leaderboard?board=tu-vi&me=${encodeURIComponent(name)}`, { method: 'GET' }).catch(() => null)
+  if (top?.ok) {
+    let rows: BoardRow[] = []
+    try { rows = (JSON.parse(top.text) as { rows?: BoardRow[] }).rows ?? [] } catch { /* bảng lỗi: giữ trống */ }
+    await update($, board, () => (Array.isArray(rows) ? rows.slice(0, 11) : []))
+  }
   if (res?.ok && res.data) await setPlayer($, res.data.player)
+}
+
+// Các dòng bảng xếp hạng: 5 người đầu, thêm hàng của mình nếu ở ngoài.
+export function boardLines(rows: BoardRow[], me: string): { text: string; mine: boolean }[] {
+  const mine = (r: BoardRow) => r.name.toLowerCase() === me.toLowerCase()
+  const medal = (n: number) => (n === 1 ? '🥇' : n === 2 ? '🥈' : n === 3 ? '🥉' : `${n}.`)
+  const show = [...rows.filter(r => r.rank <= 5), ...rows.filter(r => r.rank > 5 && mine(r))]
+  return show.map(r => ({ text: `${medal(r.rank)} ${r.name} · ${REALM_NAMES[r.realm - 1] ?? ''} · ${r.score}%`, mine: mine(r) }))
 }
 
 export const PANE_ID = PANE
@@ -98,7 +141,7 @@ export const displayMode = (v: unknown): 'image' | 'raster' | 'text' =>
   v === 'image' || v === 'text' ? v : 'raster'
 
 export async function renderPane($: any, e: any) {
-  const { Box, Text, Image, Raster } = $.ui.resolve(e)
+  const { Box, Text, Image, Raster, Svg } = $.ui.resolve(e)
   const p = await read($, me)
   if (!p) return <Text dimColor>🌱 Chưa ghi danh. Dùng /tutien register.</Text>
 
@@ -116,23 +159,57 @@ export async function renderPane($: any, e: any) {
   )
   const mode = displayMode(await $.store.get('tutien.display'))
   let art: any = <Text>{alt}</Text>
-  if (mode === 'image') {
+  if (mode !== 'text' && e.surface !== 'terminal' && Svg) {
+    // Claude Code Desktop và app điện thoại không vẽ Raster/Image (chỉ là fragment rỗng): vẽ ảnh PNG qua Svg.
+    const png = await $.fs.read(realmImage($.plugin.root, p), { as: 'bytes' }).catch(() => null)
+    if (png?.base64) art = <Svg key="realm" alt={alt} width={192} height={192} source={svgSprite(png.base64)} />
+  } else if (mode === 'image' && Image) {
     const file = realmImage($.plugin.root, p)
     if (await $.fs.stat(file).then(() => true, () => false)) {
       art = <Image key="realm" source={{ file, format: 'png' }} columns={24} rows={12} alt={alt} />
     }
-  } else if (mode === 'raster') {
+  } else if (mode === 'raster' && Raster) {
     const cells = await $.fs.read(realmCells($.plugin.root, p)).catch(() => null)
     if (cells) art = <Raster key="realm" columns={CELL_COLS} rows={CELL_ROWS} cells={String(cells).trim()} />
   }
 
+  const bg = PANEL_BG[(await setting($, 'tutien.panelbg')) ?? 'terminal']
+  const inf = await read($, info)
+  const lines = boardLines(await read($, board), ((await $.store.get('tutien.name')) as string | undefined) ?? '')
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" backgroundColor={bg}>
       {overlay}
       {art}
       <Text color={toneOf(p, Date.now())}>{stateIcon(p)} {statusText(p, Date.now())}</Text>
       <Text italic color="remember">💬 {line}</Text>
       <Text dimColor>📈 Tiến độ bậc: {percentExp(p)}%</Text>
+      {inf ? <Text dimColor>📅 Nhiệm vụ ngày: {inf.quest}%{inf.tong ? ` · 🏯 ${inf.tong}` : ''}</Text> : null}
+      {inf?.bicanh ? <Text dimColor>🌀 {inf.bicanh}</Text> : null}
+      {inf?.tamma !== null && inf?.tamma !== undefined ? <Text color="error">👹 Xua đuổi Tâm Ma: {inf.tamma}%</Text> : null}
+      {lines.length ? <Text bold color="suggestion">🏆 Bảng Tu Vi</Text> : null}
+      {lines.map(l => <Text key={`b-${l.text}`} color={l.mine ? 'success' : undefined} bold={l.mine}>{l.text}</Text>)}
+    </Box>
+  )
+}
+
+// Ô chọn: Select khi bề mặt có; app điện thoại chưa có Select nên dùng một hàng nút, nút đang chọn có dấu ✓.
+type Opt = { value: string; label: string }
+// App điện thoại chưa vẽ Select và Input (bảng phần tử của nó không có hai thành phần này).
+function resolveUi($: any, e: any) {
+  const els = $.ui.resolve(e)
+  return e.surface === 'mobile' ? { ...els, Select: undefined, Input: undefined } : els
+}
+export function choice(els: any, c: { key: string; label: string; options: Opt[]; value?: string; onSelect: (v: string) => void }) {
+  const { Box, Text, Button, Select } = els
+  if (Select) return <Select key={c.key} label={c.label} options={c.options} value={c.value} onSelect={c.onSelect} />
+  return (
+    <Box key={c.key} flexDirection="column">
+      <Text bold>{c.label}</Text>
+      <Box flexDirection="row" flexWrap="wrap" gap={1}>
+        {c.options.map(o => (
+          <Button key={`${c.key}:${o.value}`} onPress={() => c.onSelect(o.value)}>{o.value === c.value ? `✓ ${o.label}` : o.label}</Button>
+        ))}
+      </Box>
     </Box>
   )
 }
@@ -141,7 +218,8 @@ export async function renderPane($: any, e: any) {
 export const SETTINGS_ID = 'tu-tien-settings'
 
 export async function renderSettings($: any, e: any) {
-  const { Box, Text, Select } = $.ui.resolve(e)
+  const els = resolveUi($, e)
+  const { Box, Text } = els
   await read($, settingsTick) // đăng ký vẽ lại khi có thay đổi
   const stored: Record<string, unknown> = {}
   for (const s of SETTINGS) stored[s.key] = await $.store.get(s.key)
@@ -149,13 +227,12 @@ export async function renderSettings($: any, e: any) {
   return (
     <Box flexDirection="column">
       <Text bold color="suggestion">⚙️ Cài đặt Tu Tiên</Text>
-      {SETTINGS.map(s => (
-        <Select
-          key={s.key}
-          label={s.label}
-          options={s.options}
-          value={values[s.key]}
-          onSelect={(v: string) => {
+      {SETTINGS.map(s => choice(els, {
+          key: s.key,
+          label: s.label,
+          options: s.options,
+          value: values[s.key],
+          onSelect: (v: string) => {
             void (async () => {
               await $.store.set(s.key, v)
               await update($, settingsTick, (n: number) => n + 1)
@@ -164,9 +241,8 @@ export async function renderSettings($: any, e: any) {
                 await showStatus($, p)
               }
             })()
-          }}
-        />
-      ))}
+          },
+        }))}
       <Text dimColor>💾 Thay đổi được lưu ngay trên máy này.</Text>
     </Box>
   )
@@ -176,7 +252,7 @@ export async function renderSettings($: any, e: any) {
 export async function registerPlayer($: any, r: { name: string; cls: string; gender: string }): Promise<{ ok: boolean; text: string }> {
   const res = await $.http.fetch(`${SERVER}/register`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-tutien-version': String((await $.store.get('tutien.version')) ?? '') },
+    headers: { 'content-type': 'application/json', 'x-tutien-version': String((await $.store.get('tutien.version')) ?? ''), 'x-tutien-account': String((await $.store.get('tutien.account')) ?? '') },
     body: JSON.stringify(r),
   }).catch(() => null)
   if (!res) return { ok: false, text: 'Không kết nối được server.' }
@@ -187,6 +263,16 @@ export async function registerPlayer($: any, r: { name: string; cls: string; gen
   await $.store.set('tutien.name', r.name)
   await refreshPane($)
   return { ok: true, text: `Đã ghi danh ${r.name}: ${r.cls}, ${r.gender}. Khóa đã lưu trên máy này.` }
+}
+
+// /tutien ten <đạo hiệu>: đặt tên ở bước "Đặt đạo hiệu" khi bề mặt không có ô nhập (app điện thoại).
+export async function submitWizardName($: any, name: string): Promise<string> {
+  const cur = await read($, wizard)
+  if (STEPS[cur.step] !== 'name') return 'Chỉ dùng được ở bước "Đặt đạo hiệu" của /tutien start.'
+  const out = advance(cur, name)
+  await update($, wizard, () => out.w)
+  await update($, wizardError, () => out.error ?? null)
+  return out.error ? out.error : `Đã đặt đạo hiệu ${name}. Tiếp tục trong pane.`
 }
 
 // /tutien start: mở pane, đặt lại các bước và chạy chữ lời mở đầu.
@@ -214,7 +300,8 @@ export async function startWizard($: any): Promise<void> {
 }
 
 export async function renderStart($: any, e: any) {
-  const { Box, Text, Button, Select, Input } = $.ui.resolve(e)
+  const els = resolveUi($, e)
+  const { Box, Text, Button, Input } = els
   const w = await read($, wizard)
   const err = await read($, wizardError)
   const step = STEPS[w.step]
@@ -255,7 +342,7 @@ export async function renderStart($: any, e: any) {
         {header}
         <Text bold color="suggestion">🎭 Chọn lớp nhân vật</Text>
         {CLASSES.map(c => <Text key={`o-${c}`} dimColor>{c}: {CLASS_ORIGINS[c]}</Text>)}
-        <Select key="cls" label="Lớp" options={CLASSES.map(c => ({ value: c, label: c }))} value={w.cls} onSelect={(v: string) => go(v)} />
+        {choice(els, { key: 'cls', label: 'Lớp', options: CLASSES.map(c => ({ value: c, label: c })), value: w.cls, onSelect: go })}
         {error}{backBtn}
       </Box>
     )
@@ -265,7 +352,7 @@ export async function renderStart($: any, e: any) {
       <Box flexDirection="column">
         {header}
         <Text bold color="suggestion">⚥ Chọn giới</Text>
-        <Select key="gender" label="Giới" options={GENDERS.map(g => ({ value: g, label: g }))} value={w.gender} onSelect={(v: string) => go(v)} />
+        {choice(els, { key: 'gender', label: 'Giới', options: GENDERS.map(g => ({ value: g, label: g })), value: w.gender, onSelect: go })}
         {error}{backBtn}
       </Box>
     )
@@ -275,8 +362,10 @@ export async function renderStart($: any, e: any) {
       <Box flexDirection="column">
         {header}
         <Text bold color="suggestion">✍️ Đặt đạo hiệu</Text>
-        <Input key="name" label="Tên" placeholder="ví dụ ThangVo" value={w.name} onSubmit={(v: string) => go(v)} />
-        <Text dimColor>1–24 ký tự: chữ, số, gạch dưới hoặc gạch ngang. Nhấn Enter để tiếp.</Text>
+        {Input
+          ? <Input key="name" label="Tên" placeholder="ví dụ ThangVo" value={w.name} onSubmit={(v: string) => go(v)} />
+          : <Text>Gõ <Text bold>/tutien ten &lt;đạo hiệu&gt;</Text> vào ô chat để đặt tên (app điện thoại chưa có ô nhập trong pane).</Text>}
+        <Text dimColor>1–24 ký tự: chữ, số, gạch dưới hoặc gạch ngang.{Input ? ' Nhấn Enter để tiếp.' : ''}</Text>
         {error}{backBtn}
       </Box>
     )
@@ -287,7 +376,7 @@ export async function renderStart($: any, e: any) {
       <Box flexDirection="column">
         {header}
         <Text bold color="suggestion">💬 Chọn tính cách (giọng nói của nhân vật)</Text>
-        <Select key="persona" label="Tính cách" options={options} value={w.persona} onSelect={(v: string) => go(v)} />
+        {choice(els, { key: 'persona', label: 'Tính cách', options, value: w.persona, onSelect: go })}
         {error}{backBtn}
       </Box>
     )
@@ -302,7 +391,7 @@ export async function renderStart($: any, e: any) {
       <Box flexDirection="column">
         {header}
         <Text bold color="suggestion">🖼️ Chọn cách hiển thị nhân vật</Text>
-        <Select key="display" label="Hiển thị" options={options} value={w.display} onSelect={(v: string) => go(v)} />
+        {choice(els, { key: 'display', label: 'Hiển thị', options, value: w.display, onSelect: go })}
         {error}{backBtn}
       </Box>
     )

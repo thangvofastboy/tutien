@@ -33,3 +33,32 @@ test('tối đa một hình phạt mỗi ngày', () => {
   const twice = applyFailedExorcism(once, 20)
   expect(twice.exp).toBe(once.exp)
 })
+
+import { tammaStep, tammaCapped, TAMMA_WINDOW_MS, LINH_THACH_REWARD } from './tamma'
+
+test('tâm ma: xuất hiện, xua đuổi đủ token trong 2 giờ thì được 5 linh thạch', () => {
+  const p = newPlayer('Kiếm Tu', 'Nam')
+  const a = tammaStep(p, {}, 1000, 0, () => 0, 1_200_000, false)
+  expect(a.events).toEqual(['tamma'])
+  expect(a.t.active?.need).toBe(90_000)
+  const b = tammaStep(a.p, a.t, 95_000, 60_000, () => 0.99, 1_200_000, false)
+  expect(b.events).toEqual(['tamma-defeated'])
+  expect(b.t.linhThach).toBe(LINH_THACH_REWARD)
+  expect(b.t.wins).toBe(1)
+})
+
+test('tâm ma: quá 2 giờ chưa đủ thì phạt 0,5% ngưỡng EXP (ngoài thiên phạt)', () => {
+  const p = { ...newPlayer('Kiếm Tu', 'Nam'), exp: 5000 }
+  const a = tammaStep(p, {}, 0, 0, () => 0, 1_200_000, false)
+  const b = tammaStep(a.p, a.t, 1000, TAMMA_WINDOW_MS + 1, () => 0.99, 1_200_000, false)
+  expect(b.events).toEqual(['tamma-failed'])
+  expect(b.p.exp).toBeLessThan(5000)
+})
+
+test('tâm ma: tắt hiệu ứng thì không xuất hiện; giới hạn số lần mỗi ngày', () => {
+  const p = newPlayer('Kiếm Tu', 'Nam')
+  expect(tammaStep(p, {}, 0, 0, () => 0, 0, true).events).toEqual([])
+  expect(tammaCapped([0], false, 3 * 3_600_000)).toBe(true)
+  expect(tammaCapped([0], false, 7 * 3_600_000)).toBe(false)
+  expect(tammaCapped([0, 1, 2], false, 7 * 3_600_000)).toBe(true)
+})
