@@ -2,7 +2,7 @@
 // Worker: định tuyến và xác thực khóa. Luật nằm trong logic.ts / hooks/rules.ts.
 import { PlayerDO } from './player.ts'
 import { RosterDO } from './roster.ts'
-import { sortBoards, versionAllowed, addRelease, validTurnId, type Row } from './logic.ts'
+import { sortBoards, publicBoard, versionAllowed, addRelease, validTurnId, type Row } from './logic.ts'
 
 export { PlayerDO, RosterDO }
 
@@ -49,7 +49,8 @@ export default {
       const board = BOARDS[(url.searchParams.get('board') ?? 'tu-vi') as keyof typeof BOARDS]
       if (!board) return json({ error: 'unknown board' }, 400)
       const all = (await (await roster.fetch('https://do/all')).json()) as { rows: Row[] }
-      return json({ rows: sortBoards(all.rows)[board].slice(0, 10) })
+      const ranked = sortBoards(all.rows)[board]
+      return json({ rows: publicBoard(ranked, url.searchParams.get('board') ?? 'tu-vi', Date.now()).slice(0, 10) })
     }
 
     // Every write path below requires a current mod build (spec 21.5).

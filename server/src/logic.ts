@@ -1,5 +1,5 @@
 // server/src/logic.ts — nghiệp vụ server thuần, test bằng node:test. Luật lấy từ hooks/rules.ts (một nguồn).
-import { applyUsage, newPlayer, effects, REALM_NAMES, type Player } from '../../hooks/rules.ts'
+import { applyUsage, newPlayer, effects, need, REALM_NAMES, type Player } from '../../hooks/rules.ts'
 
 export const SEEN_LIMIT = 1000
 export const MAX_TOKENS_PER_TURN = 5_000_000
@@ -59,7 +59,7 @@ export function handleReset(st: State, cls: string, gender: string): State {
   }
 }
 
-export type Row = { name: string; cls: string; gender: string; realm: number; exp: number; lifetimeTokens: number; week: number; deaths: number; artifacts: number }
+export type Row = { name: string; cls: string; gender: string; realm: number; exp: number; pct: number; lifetimeTokens: number; week: number; deaths: number; artifacts: number }
 
 export function row(st: State, now: number): Row {
   const cutoff = now - 7 * DAY_MS
@@ -68,7 +68,8 @@ export function row(st: State, now: number): Row {
     .reduce((a, [, v]) => a + v, 0)
   return {
     name: st.name, cls: st.player.cls, gender: st.player.gender, realm: st.player.realm,
-    exp: st.player.exp, lifetimeTokens: st.lifetimeTokens, week, deaths: st.deaths,
+    exp: st.player.exp, pct: Math.min(100, Math.floor((st.player.exp / need(st.player.realm)) * 100)),
+    lifetimeTokens: st.lifetimeTokens, week, deaths: st.deaths,
     artifacts: st.player.artifacts.length,
   }
 }
@@ -99,4 +100,22 @@ export function versionAllowed(releases: string[], version: string): boolean {
 }
 export function addRelease(releases: string[], tag: string): string[] {
   return [tag, ...releases.filter(t => t !== tag)].slice(0, RELEASES_KEPT)
+}
+
+// Bảng công khai (spec 19.6, 16): hạng, tên, lớp, bậc và một điểm không lộ số liệu thô.
+// Tu vi: phần trăm tiến độ. Chăm chỉ và Tuần này: phần trăm so với người đứng đầu. Phượng hoàng và Pháp bảo: số nhỏ.
+export type PublicRow = { rank: number; name: string; cls: string; realm: number; score: number }
+export function publicBoard(rows: Row[], board: string, _now: number): PublicRow[] {
+  const top = (k: (r: Row) => number) => Math.max(1, ...rows.map(k))
+  const score = (r: Row): number => {
+    switch (board) {
+      case 'tu-vi': return r.pct
+      case 'chamchi': return Math.floor((r.lifetimeTokens / top(x => x.lifetimeTokens)) * 100)
+      case 'tuan': return Math.floor((r.week / top(x => x.week)) * 100)
+      case 'phoenix': return r.deaths
+      case 'phapbao': return r.artifacts
+      default: return 0
+    }
+  }
+  return rows.map((r, i) => ({ rank: i + 1, name: r.name, cls: r.cls, realm: r.realm, score: score(r) }))
 }

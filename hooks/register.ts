@@ -1,6 +1,10 @@
 import type { Register } from 'claude-code'
 import { parseAutoUpdate, parseDescribe } from './version'
 import { recordTurn, flushUsage } from './usage'
+import { callServer, SERVER } from './api'
+import { CLASSES, GENDERS } from './rules'
+import { HELP, tokens, parseRegister, parseReset, formatTop } from './commands'
+import { statusText } from './display'
 
 const USAGE = 'Usage: /tutien update | autoupdate on|off'
 
@@ -38,15 +42,66 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'tutien' }, async ($, e) => {
-    const [sub, ...rest] = e.args.trim().split(/\s+/)
-    if (sub === 'autoupdate') {
-      const v = parseAutoUpdate(rest.join(' '))
-      if (!v) return { text: 'Dùng: /tutien autoupdate on|off' }
-      await $.store.set('tutien.autoupdate', v)
-      return { text: `Tự cập nhật khi mở Claude Code: ${v === 'on' ? 'bật' : 'tắt'}.` }
+    const [sub = '', ...rest] = tokens(e.args)
+    const tail = e.args.trim().slice(sub.length).trim()
+    switch (sub) {
+      case 'help': case '': return { text: HELP }
+      case 'update': return { text: await runUpdate($) }
+      case 'autoupdate': {
+        const v = parseAutoUpdate(rest.join(' '))
+        if (!v) return { text: 'Dùng: /tutien autoupdate on|off' }
+        await $.store.set('tutien.autoupdate', v)
+        return { text: `Tự cập nhật khi mở Claude Code: ${v === 'on' ? 'bật' : 'tắt'}.` }
+      }
+      case 'register': {
+        const r = parseRegister(tail)
+        if (!r) return { text: 'Dùng: /tutien register <tên> <lớp> <giới>' }
+        const res = await $.http.fetch(`${SERVER}/register`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-tutien-version': String((await $.store.get('tutien.version')) ?? '') },
+          body: JSON.stringify(r),
+        })
+        if (res.status === 409) return { text: `Tên "${r.name}" đã có người dùng.` }
+        if (res.status === 426) return { text: 'Bản mod đã cũ. Chạy /tutien update trước.' }
+        if (!res.ok) return { text: `Đăng ký thất bại (${res.status}).` }
+        await $.store.set('tutien.key', JSON.parse(res.text).key)
+        await $.store.set('tutien.name', r.name)
+        return { text: `Đã ghi danh ${r.name}: ${r.cls}, ${r.gender}. Khóa đã lưu trên máy này.` }
+      }
+      case 'appearance': {
+        const [cls, gender] = tokens(tail)
+        if (!(CLASSES as readonly string[]).includes(cls) || !(GENDERS as readonly string[]).includes(gender)) {
+          return { text: 'Dùng: /tutien appearance <lớp> <giới>' }
+        }
+        const res = await callServer($, '/appearance', { cls, gender })
+        return { text: res.upgrade ? 'Bản mod đã cũ. Chạy /tutien update.' : res.ok ? `Đã đổi thành ${cls}, ${gender}.` : 'Chưa ghi danh, hoặc server không phản hồi.' }
+      }
+      case 'reset': {
+        const r = parseReset(tail)
+        if (!r.confirm) {
+          return { text: 'Reset sẽ đưa bậc, EXP, thiên phạt và pháp bảo về 0, kèm chọn lại lớp và giới.\nGõ: /tutien reset confirm <lớp> <giới>\nLớp: ' + CLASSES.join(', ') + '\nGiới: ' + GENDERS.join(', ') }
+        }
+        if (!r.cls || !r.gender) return { text: 'Thiếu lớp hoặc giới hợp lệ.' }
+        const res = await callServer($, '/reset', { cls: r.cls, gender: r.gender })
+        return { text: res.ok ? `Đã quay về Luyện Khí Sơ Kỳ, ${r.cls}, ${r.gender}.` : 'Không reset được (chưa ghi danh hoặc server lỗi).' }
+      }
+      case 'status': case 's': {
+        const res = await callServer<{ player: any }>($, '/me')
+        if (!res.ok || !res.data) return { text: 'Chưa ghi danh, hoặc server không phản hồi.' }
+        return { text: statusText(res.data.player, Date.now()) }
+      }
+      case 'top': case 't': {
+        const me = ((await $.store.get('tutien.name')) as string) ?? ''
+        const sections: string[] = []
+        for (const [board, title] of [['tu-vi', 'Tu vi'], ['chamchi', 'Chăm chỉ'], ['tuan', 'Tuần này'], ['phoenix', 'Phượng hoàng'], ['phapbao', 'Pháp bảo']] as const) {
+          const res = await $.http.fetch(`${SERVER}/leaderboard?board=${board}`, { method: 'GET' })
+          if (!res.ok) { sections.push(`— ${title} —\nKhông lấy được bảng này (${res.status}).`); continue }
+          sections.push(formatTop(title, JSON.parse(res.text).rows, me))
+        }
+        return { text: sections.join('\n\n') }
+      }
+      default: return { text: HELP }
     }
-    if (sub !== 'update') return { text: USAGE }
-    return { text: await runUpdate($) }
   })
 }
 

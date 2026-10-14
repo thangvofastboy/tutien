@@ -100,3 +100,25 @@ test('turnId phải là chuỗi ngắn hợp lệ', () => {
   assert.equal(validTurnId('x'.repeat(200)), false)
   assert.equal(validTurnId(42 as any), false)
 })
+
+import { publicBoard } from './logic.ts'
+
+test('bảng công khai: chỉ hạng, tên, bậc và phần trăm — không lộ EXP hay token', () => {
+  let a = register('a', 'Thể Tu', 'Nam', 'h')
+  a = { ...a, player: { ...a.player, realm: 5, exp: 10 }, lifetimeTokens: 987_654 }
+  const b = register('b', 'Thể Tu', 'Nam', 'h')
+  const rows = publicBoard(boards([a, b], NOW).chamChi, 'chamchi', NOW)
+  const json = JSON.stringify(rows)
+  assert.equal(json.includes('987654'), false)
+  assert.equal(json.includes('"exp"'), false)
+  assert.equal(rows[0].rank, 1)
+  assert.equal(rows[0].name, 'a')
+  assert.equal(rows[0].score, 100)
+})
+
+test('bảng Tu vi hiện phần trăm tiến độ bậc', () => {
+  let a = register('a', 'Thể Tu', 'Nam', 'h')
+  a = { ...a, player: { ...a.player, realm: 1, exp: 4000 } }
+  const rows = publicBoard(boards([a], NOW).tuVi, 'tu-vi', NOW)
+  assert.equal(rows[0].score, 50)
+})
