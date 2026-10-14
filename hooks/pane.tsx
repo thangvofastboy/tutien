@@ -1,10 +1,10 @@
 import { atom, read, update } from 'claude-code'
 import { callServer } from './api'
-import { statusText, percentExp } from './display'
+import { statusText, percentExp, stateIcon, toneOf } from './display'
 import { REALM_NAMES, type Player } from './rules'
 import { tribEffect, overlayFrame, effectActive } from './effects'
 import { paneLine } from './persona'
-import { bandLines } from './band'
+import { bandLines, classIcon } from './band'
 import { SETTINGS, withDefaults } from './settings'
 import { STEPS, initWizard, advance, type Wizard } from './start'
 import { PROLOGUE, CLASS_ORIGINS, STARTER_QUESTS } from './story'
@@ -61,7 +61,7 @@ export async function showStatus($: any, player: Player | undefined): Promise<vo
   const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
   if (!player || !name || (await setting($, 'tutien.statusline')) === 'off') return $.ui.status(undefined)
   const [top, bottom] = bandLines(name, player, Date.now())
-  $.ui.status(`${top} · ${bottom}`)
+  $.ui.status(`${stateIcon(player)} ${top} · ${bottom}`)
 }
 
 // Khung chữ nhỏ căn phải phía trên ô nhập (dải AbovePrompt).
@@ -74,8 +74,8 @@ export async function renderBand($: any, e: any, next: any) {
   return (
     <Box flexDirection="row" justifyContent="flex-end">
       <Box flexDirection="column" borderStyle="round" paddingX={1}>
-        <Text>{top}</Text>
-        <Text dimColor>{bottom}</Text>
+        <Text bold color="suggestion">{classIcon(p?.cls ?? '')} {top}</Text>
+        <Text color={toneOf(p, Date.now())}>{p ? stateIcon(p) : '✦'} {bottom}</Text>
       </Box>
     </Box>
   )
@@ -100,7 +100,7 @@ export const displayMode = (v: unknown): 'image' | 'raster' | 'text' =>
 export async function renderPane($: any, e: any) {
   const { Box, Text, Image, Raster } = $.ui.resolve(e)
   const p = await read($, me)
-  if (!p) return <Text dimColor>Chưa ghi danh. Dùng /tutien register.</Text>
+  if (!p) return <Text dimColor>🌱 Chưa ghi danh. Dùng /tutien register.</Text>
 
   const alt = `${REALM_NAMES[p.realm - 1]} (${p.cls}, ${p.gender})`
   const fx = await read($, effect)
@@ -130,9 +130,9 @@ export async function renderPane($: any, e: any) {
     <Box flexDirection="column">
       {overlay}
       {art}
-      <Text>{statusText(p, Date.now())}</Text>
-      <Text italic>{line}</Text>
-      <Text dimColor>Tiến độ bậc: {percentExp(p)}%</Text>
+      <Text color={toneOf(p, Date.now())}>{stateIcon(p)} {statusText(p, Date.now())}</Text>
+      <Text italic color="remember">💬 {line}</Text>
+      <Text dimColor>📈 Tiến độ bậc: {percentExp(p)}%</Text>
     </Box>
   )
 }
@@ -148,7 +148,7 @@ export async function renderSettings($: any, e: any) {
   const values = withDefaults(stored)
   return (
     <Box flexDirection="column">
-      <Text bold>Cài đặt Tu Tiên</Text>
+      <Text bold color="suggestion">⚙️ Cài đặt Tu Tiên</Text>
       {SETTINGS.map(s => (
         <Select
           key={s.key}
@@ -167,7 +167,7 @@ export async function renderSettings($: any, e: any) {
           }}
         />
       ))}
-      <Text dimColor>Thay đổi được lưu ngay trên máy này.</Text>
+      <Text dimColor>💾 Thay đổi được lưu ngay trên máy này.</Text>
     </Box>
   )
 }
@@ -231,8 +231,8 @@ export async function renderStart($: any, e: any) {
     void update($, wizard, (x: Wizard) => ({ ...x, step: Math.max(0, x.step - 1) }))
   }
 
-  const header = <Text dimColor>Bước {w.step + 1}/{STEPS.length}</Text>
-  const error = err ? <Text color="red">{err}</Text> : null
+  const header = <Text dimColor>🧭 Bước {w.step + 1}/{STEPS.length}</Text>
+  const error = err ? <Text color="error">⚠️ {err}</Text> : null
   const backBtn = w.step > 0 ? <Button key="back" onPress={back}>Quay lại</Button> : null
 
   if (step === 'story') {
@@ -253,7 +253,7 @@ export async function renderStart($: any, e: any) {
     return (
       <Box flexDirection="column">
         {header}
-        <Text bold>Chọn lớp nhân vật</Text>
+        <Text bold color="suggestion">🎭 Chọn lớp nhân vật</Text>
         {CLASSES.map(c => <Text key={`o-${c}`} dimColor>{c}: {CLASS_ORIGINS[c]}</Text>)}
         <Select key="cls" label="Lớp" options={CLASSES.map(c => ({ value: c, label: c }))} value={w.cls} onSelect={(v: string) => go(v)} />
         {error}{backBtn}
@@ -264,7 +264,7 @@ export async function renderStart($: any, e: any) {
     return (
       <Box flexDirection="column">
         {header}
-        <Text bold>Chọn giới</Text>
+        <Text bold color="suggestion">⚥ Chọn giới</Text>
         <Select key="gender" label="Giới" options={GENDERS.map(g => ({ value: g, label: g }))} value={w.gender} onSelect={(v: string) => go(v)} />
         {error}{backBtn}
       </Box>
@@ -274,7 +274,7 @@ export async function renderStart($: any, e: any) {
     return (
       <Box flexDirection="column">
         {header}
-        <Text bold>Đặt đạo hiệu</Text>
+        <Text bold color="suggestion">✍️ Đặt đạo hiệu</Text>
         <Input key="name" label="Tên" placeholder="ví dụ ThangVo" value={w.name} onSubmit={(v: string) => go(v)} />
         <Text dimColor>1–24 ký tự: chữ, số, gạch dưới hoặc gạch ngang. Nhấn Enter để tiếp.</Text>
         {error}{backBtn}
@@ -286,7 +286,7 @@ export async function renderStart($: any, e: any) {
     return (
       <Box flexDirection="column">
         {header}
-        <Text bold>Chọn tính cách (giọng nói của nhân vật)</Text>
+        <Text bold color="suggestion">💬 Chọn tính cách (giọng nói của nhân vật)</Text>
         <Select key="persona" label="Tính cách" options={options} value={w.persona} onSelect={(v: string) => go(v)} />
         {error}{backBtn}
       </Box>
@@ -301,7 +301,7 @@ export async function renderStart($: any, e: any) {
     return (
       <Box flexDirection="column">
         {header}
-        <Text bold>Chọn cách hiển thị nhân vật</Text>
+        <Text bold color="suggestion">🖼️ Chọn cách hiển thị nhân vật</Text>
         <Select key="display" label="Hiển thị" options={options} value={w.display} onSelect={(v: string) => go(v)} />
         {error}{backBtn}
       </Box>
@@ -322,11 +322,11 @@ export async function renderStart($: any, e: any) {
   return (
     <Box flexDirection="column">
       {header}
-      <Text bold>{finished ? 'Đã ghi danh! Hành trình bắt đầu.' : 'Xác nhận nhân vật'}</Text>
+      <Text bold color={finished ? 'success' : 'suggestion'}>{finished ? '✅ Đã ghi danh! Hành trình bắt đầu.' : '📋 Xác nhận nhân vật'}</Text>
       <Text>Đạo hiệu: {w.name} · Lớp: {w.cls} · Giới: {w.gender}</Text>
       <Text dimColor>Tính cách: {w.persona === 'none' ? 'Không' : w.persona} · Hiển thị: {w.display}</Text>
       {finished
-        ? STARTER_QUESTS.map(q => <Text key={q.title} dimColor>{q.title}</Text>)
+        ? STARTER_QUESTS.map(q => <Text key={q.title} color="warning">📌 {q.title}</Text>)
         : <Box flexDirection="row"><Button key="ok" onPress={confirm}>Ghi danh</Button>{backBtn}</Box>}
       {error}
     </Box>
