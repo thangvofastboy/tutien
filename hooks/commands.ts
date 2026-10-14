@@ -2,6 +2,7 @@
 import { CLASSES, GENDERS } from './rules'
 
 export const HELP = [
+  '/tutien start                          bắt đầu: câu chuyện và tạo nhân vật',
   '/tutien register <tên> <lớp> <giới>   ghi danh',
   '/tutien appearance <lớp> <giới>        đổi lớp và giới',
   '/tutien reset confirm <lớp> <giới>     làm lại từ đầu',

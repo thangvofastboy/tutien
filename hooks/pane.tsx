@@ -6,12 +6,20 @@ import { tribEffect, overlayFrame, effectActive } from './effects'
 import { paneLine } from './persona'
 import { bandLines } from './band'
 import { SETTINGS, withDefaults } from './settings'
+import { STEPS, initWizard, advance, type Wizard } from './start'
+import { PROLOGUE, CLASS_ORIGINS, STARTER_QUESTS } from './story'
+import { CLASSES, GENDERS } from './rules'
+import { PERSONAS } from './persona'
+import { SERVER } from './api'
 
 const PANE = 'tu-tien'
 const me = atom({ plugin: 'tutien', key: 'me' } as const, undefined as Player | undefined)
 const effect = atom({ plugin: 'tutien', key: 'effect' } as const, null as { kind: string; until: number } | null)
 const tick = atom({ plugin: 'tutien', key: 'tick' } as const, 0)
 const settingsTick = atom({ plugin: 'tutien', key: 'settingsTick' } as const, 0)
+const wizard = atom({ plugin: 'tutien', key: 'wizard' } as const, { step: 0 } as Wizard)
+const wizardError = atom({ plugin: 'tutien', key: 'wizardError' } as const, null as string | null)
+const typed = atom({ plugin: 'tutien', key: 'typed' } as const, 0)
 
 async function setting($: any, key: string): Promise<string | undefined> {
   return (await $.store.get(key)) as string | undefined
@@ -160,6 +168,167 @@ export async function renderSettings($: any, e: any) {
         />
       ))}
       <Text dimColor>Thay đổi được lưu ngay trên máy này.</Text>
+    </Box>
+  )
+}
+
+// Ghi danh lên server (dùng chung cho /tutien register và bước xác nhận của /tutien start).
+export async function registerPlayer($: any, r: { name: string; cls: string; gender: string }): Promise<{ ok: boolean; text: string }> {
+  const res = await $.http.fetch(`${SERVER}/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-tutien-version': String((await $.store.get('tutien.version')) ?? '') },
+    body: JSON.stringify(r),
+  }).catch(() => null)
+  if (!res) return { ok: false, text: 'Không kết nối được server.' }
+  if (res.status === 409) return { ok: false, text: `Tên "${r.name}" đã có người dùng.` }
+  if (res.status === 426) return { ok: false, text: 'Bản mod đã cũ. Chạy /tutien update trước.' }
+  if (!res.ok) return { ok: false, text: `Đăng ký thất bại (${res.status}).` }
+  await $.store.set('tutien.key', JSON.parse(res.text).key)
+  await $.store.set('tutien.name', r.name)
+  await refreshPane($)
+  return { ok: true, text: `Đã ghi danh ${r.name}: ${r.cls}, ${r.gender}. Khóa đã lưu trên máy này.` }
+}
+
+// /tutien start: mở pane, đặt lại các bước và chạy chữ lời mở đầu.
+export const START_ID = 'tu-tien-start'
+
+export async function startWizard($: any): Promise<void> {
+  await update($, wizard, () => initWizard())
+  await update($, wizardError, () => null)
+  await update($, typed, () => 0)
+  await $.ui.open({ id: START_ID, title: 'Tu Tiên Ký' })
+  const reduced = (await setting($, 'tutien.effects')) === 'off'
+  if (reduced) {
+    await update($, typed, () => PROLOGUE.length)
+    return
+  }
+  const timer = $.clock.every(30, () => {
+    void update($, typed, (n: number) => {
+      if (n >= PROLOGUE.length) {
+        timer.cancel()
+        return n
+      }
+      return Math.min(PROLOGUE.length, n + 3)
+    })
+  })
+}
+
+export async function renderStart($: any, e: any) {
+  const { Box, Text, Button, Select, Input } = $.ui.resolve(e)
+  const w = await read($, wizard)
+  const err = await read($, wizardError)
+  const step = STEPS[w.step]
+
+  function go(value: string | null) {
+    void (async () => {
+      const cur = await read($, wizard)
+      const out = advance(cur, value)
+      await update($, wizard, () => out.w)
+      await update($, wizardError, () => out.error ?? null)
+    })()
+  }
+  function back() {
+    void update($, wizard, (x: Wizard) => ({ ...x, step: Math.max(0, x.step - 1) }))
+  }
+
+  const header = <Text dimColor>Bước {w.step + 1}/{STEPS.length}</Text>
+  const error = err ? <Text color="red">{err}</Text> : null
+  const backBtn = w.step > 0 ? <Button key="back" onPress={back}>Quay lại</Button> : null
+
+  if (step === 'story') {
+    const n = await read($, typed)
+    const done = n >= PROLOGUE.length
+    return (
+      <Box flexDirection="column">
+        {header}
+        <Text>{PROLOGUE.slice(0, n)}</Text>
+        <Box flexDirection="row">
+          {!done ? <Button key="skip" onPress={() => void update($, typed, () => PROLOGUE.length)}>Hiện hết</Button> : null}
+          <Button key="next" onPress={() => go(null)}>Tiếp</Button>
+        </Box>
+      </Box>
+    )
+  }
+  if (step === 'class') {
+    return (
+      <Box flexDirection="column">
+        {header}
+        <Text bold>Chọn lớp nhân vật</Text>
+        {CLASSES.map(c => <Text key={`o-${c}`} dimColor>{c}: {CLASS_ORIGINS[c]}</Text>)}
+        <Select key="cls" label="Lớp" options={CLASSES.map(c => ({ value: c, label: c }))} value={w.cls} onSelect={(v: string) => go(v)} />
+        {error}{backBtn}
+      </Box>
+    )
+  }
+  if (step === 'gender') {
+    return (
+      <Box flexDirection="column">
+        {header}
+        <Text bold>Chọn giới</Text>
+        <Select key="gender" label="Giới" options={GENDERS.map(g => ({ value: g, label: g }))} value={w.gender} onSelect={(v: string) => go(v)} />
+        {error}{backBtn}
+      </Box>
+    )
+  }
+  if (step === 'name') {
+    return (
+      <Box flexDirection="column">
+        {header}
+        <Text bold>Đặt đạo hiệu</Text>
+        <Input key="name" label="Tên" placeholder="ví dụ ThangVo" value={w.name} onSubmit={(v: string) => go(v)} />
+        <Text dimColor>1–24 ký tự: chữ, số, gạch dưới hoặc gạch ngang. Nhấn Enter để tiếp.</Text>
+        {error}{backBtn}
+      </Box>
+    )
+  }
+  if (step === 'persona') {
+    const options = [{ value: 'none', label: 'Không' }, ...PERSONAS.map(p => ({ value: p.id, label: `${p.name}: ${p.catchphrase}` }))]
+    return (
+      <Box flexDirection="column">
+        {header}
+        <Text bold>Chọn tính cách (giọng nói của nhân vật)</Text>
+        <Select key="persona" label="Tính cách" options={options} value={w.persona} onSelect={(v: string) => go(v)} />
+        {error}{backBtn}
+      </Box>
+    )
+  }
+  if (step === 'display') {
+    const options = [
+      { value: 'raster', label: 'Ô màu (chạy trên mọi terminal)' },
+      { value: 'image', label: 'Ảnh (kitty, WezTerm, Ghostty)' },
+      { value: 'text', label: 'Chỉ chữ' },
+    ]
+    return (
+      <Box flexDirection="column">
+        {header}
+        <Text bold>Chọn cách hiển thị nhân vật</Text>
+        <Select key="display" label="Hiển thị" options={options} value={w.display} onSelect={(v: string) => go(v)} />
+        {error}{backBtn}
+      </Box>
+    )
+  }
+  // confirm
+  function confirm() {
+    void (async () => {
+      const cur = await read($, wizard)
+      await $.store.set('tutien.persona', cur.persona ?? 'none')
+      await $.store.set('tutien.display', cur.display ?? 'raster')
+      const r = await registerPlayer($, { name: cur.name!, cls: cur.cls!, gender: cur.gender! })
+      await update($, wizardError, () => (r.ok ? null : r.text))
+      if (r.ok) await update($, wizard, (x: Wizard) => ({ ...x, step: STEPS.length - 1, done: true }))
+    })()
+  }
+  const finished = w.done === true
+  return (
+    <Box flexDirection="column">
+      {header}
+      <Text bold>{finished ? 'Đã ghi danh! Hành trình bắt đầu.' : 'Xác nhận nhân vật'}</Text>
+      <Text>Đạo hiệu: {w.name} · Lớp: {w.cls} · Giới: {w.gender}</Text>
+      <Text dimColor>Tính cách: {w.persona === 'none' ? 'Không' : w.persona} · Hiển thị: {w.display}</Text>
+      {finished
+        ? STARTER_QUESTS.map(q => <Text key={q.title} dimColor>{q.title}</Text>)
+        : <Box flexDirection="row"><Button key="ok" onPress={confirm}>Ghi danh</Button>{backBtn}</Box>}
+      {error}
     </Box>
   )
 }

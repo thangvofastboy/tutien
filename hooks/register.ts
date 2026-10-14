@@ -5,7 +5,7 @@ import { callServer, SERVER } from './api'
 import { CLASSES, GENDERS } from './rules'
 import { HELP, tokens, parseRegister, parseReset, formatTop } from './commands'
 import { statusText } from './display'
-import { refreshPane, renderPane, renderBand, renderSettings, setPlayer, PANE_ID, SETTINGS_ID } from './pane'
+import { refreshPane, renderPane, renderBand, renderSettings, renderStart, startWizard, registerPlayer, setPlayer, PANE_ID, SETTINGS_ID, START_ID } from './pane'
 import { PERSONAS, personaById, buildPersonaPrompt, parsePersonaLines } from './persona'
 import { PROLOGUE, unlockedChapters } from './story'
 
@@ -32,6 +32,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => renderPane($, e))
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => renderBand($, e, next))
   on('ui.render', { component: 'Pane', requestId: SETTINGS_ID }, async ($, e) => renderSettings($, e))
+  on('ui.render', { component: 'Pane', requestId: START_ID }, async ($, e) => renderStart($, e))
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
@@ -79,18 +80,11 @@ export const register: Register = on => {
       case 'register': {
         const r = parseRegister(tail)
         if (!r) return { text: 'Dùng: /tutien register <tên> <lớp> <giới>' }
-        const res = await $.http.fetch(`${SERVER}/register`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-tutien-version': String((await $.store.get('tutien.version')) ?? '') },
-          body: JSON.stringify(r),
-        })
-        if (res.status === 409) return { text: `Tên "${r.name}" đã có người dùng.` }
-        if (res.status === 426) return { text: 'Bản mod đã cũ. Chạy /tutien update trước.' }
-        if (!res.ok) return { text: `Đăng ký thất bại (${res.status}).` }
-        await $.store.set('tutien.key', JSON.parse(res.text).key)
-        await $.store.set('tutien.name', r.name)
-        await refreshPane($)
-        return { text: `Đã ghi danh ${r.name}: ${r.cls}, ${r.gender}. Khóa đã lưu trên máy này.` }
+        return { text: (await registerPlayer($, r)).text }
+      }
+      case 'start': case 'batdau': {
+        await startWizard($)
+        return { text: 'Bắt đầu hành trình tu tiên. Làm theo các bước trong pane.' }
       }
       case 'appearance': {
         const [cls, gender] = tokens(tail)
