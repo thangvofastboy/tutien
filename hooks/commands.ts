@@ -9,6 +9,8 @@ export const HELP = [
   '/tutien top (t)                        mọi bảng xếp hạng',
   '/tutien autoupdate on|off              tự cập nhật khi mở Claude Code',
   '/tutien hienthi image|raster|text      cách vẽ nhân vật trong pane',
+  '/tutien persona <tên>                  chọn tính cách nhân vật (giọng nói)',
+  '/tutien truyen                         đọc cốt truyện đã mở',
   '/tutien update                         cập nhật bản đã ký mới nhất',
   '/tutien help                           danh sách này',
 ].join('\n')

@@ -31,7 +31,10 @@ export const realmImage = (root: string, p: Player, frame = 1) =>
 // Các hàm dưới đây được register.ts gọi (engine chỉ nạp một module hooks mỗi plugin).
 export async function refreshPane($: any): Promise<void> {
   const res = await callServer<{ player: Player }>($, '/me').catch(() => undefined)
-  if (res?.ok && res.data) await update($, me, () => res.data!.player)
+  if (res?.ok && res.data) {
+    await update($, me, () => res.data!.player)
+    await $.store.set('tutien.realm', res.data.player.realm)
+  }
 }
 
 export const PANE_ID = PANE

@@ -6,6 +6,8 @@ import { CLASSES, GENDERS } from './rules'
 import { HELP, tokens, parseRegister, parseReset, formatTop } from './commands'
 import { statusText } from './display'
 import { refreshPane, renderPane, PANE_ID } from './pane'
+import { PERSONAS, personaById, buildPersonaPrompt, parsePersonaLines } from './persona'
+import { PROLOGUE, unlockedChapters } from './story'
 
 const USAGE = 'Usage: /tutien update | autoupdate on|off'
 
@@ -97,6 +99,30 @@ export const register: Register = on => {
         if (!r.cls || !r.gender) return { text: 'Thiếu lớp hoặc giới hợp lệ.' }
         const res = await callServer($, '/reset', { cls: r.cls, gender: r.gender })
         return { text: res.ok ? `Đã quay về Luyện Khí Sơ Kỳ, ${r.cls}, ${r.gender}.` : 'Không reset được (chưa ghi danh hoặc server lỗi).' }
+      }
+      case 'persona': {
+        const [id, ...restDesc] = rest
+        if (id === 'tuy-chinh') {
+          const desc = restDesc.join(' ').trim()
+          if (!desc) return { text: 'Dùng: /tutien persona tuy-chinh <mô tả tính cách, tối đa 200 ký tự>' }
+          const out = await $.model.complete({ model: 'haiku', prompt: buildPersonaPrompt(desc) }).catch(() => null)
+          const lines = out && out.isAnswered ? parsePersonaLines(out.text) : []
+          if (lines.length === 0) return { text: 'Không tạo được thoại tùy chỉnh; giữ bộ thoại mặc định.' }
+          await $.store.set('tutien.persona', 'tuy-chinh')
+          await $.store.set('tutien.personaLines', lines)
+          return { text: `Đã đặt tính cách tùy chỉnh (${lines.length} câu thoại), chỉ lưu trên máy này.` }
+        }
+        const p = id ? personaById(id) : null
+        if (!p) return { text: `Dùng: /tutien persona <${PERSONAS.map(x => x.id).join('|')}|tuy-chinh>` }
+        await $.store.set('tutien.persona', p.id)
+        await $.store.set('tutien.personaLines', null)
+        return { text: `Tính cách: ${p.name}. ${p.catchphrase}` }
+      }
+      case 'truyen': {
+        const realm = ((await $.store.get('tutien.realm')) as number | undefined) ?? 1
+        const chapters = unlockedChapters(realm)
+        const body = [PROLOGUE, ...chapters.map(c => `${c.title}\n${c.text}`)].join('\n\n')
+        return { text: body }
       }
       case 'hienthi': {
         const mode = (rest[0] ?? '').trim()
