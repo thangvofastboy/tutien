@@ -15,11 +15,18 @@ Bạn **không** cần vẽ 3 khung hào quang cho mỗi bậc. Script `scripts/
 
 - **Phong cách**: pixel art, nhân vật chibi toàn thân, nhìn thẳng.
 - **Kích thước giao**: 96×96 px, PNG. Nếu AI chỉ tạo được ảnh lớn (ví dụ 512×512), hãy thu nhỏ bằng phương pháp *nearest neighbor* để giữ nét pixel.
-- **Nền**: một màu xanh navy đậm `#12141F`, không hoa văn. (Hoặc nền trong suốt nếu AI hỗ trợ; khi đó vẫn giữ nhất quán cho cả bộ.)
+- **Nền**: **trong suốt hoàn toàn** (kênh alpha), không có nền, không có bóng sàn hình hộp. Không dùng nền navy hay bàn cờ.
 - **Bố cục**: nhân vật ở giữa, cùng tư thế, cùng tỉ lệ, cùng khoảng cách tới mép trong **toàn bộ** 462 ảnh. Đầu ở khoảng 1/5 từ trên xuống, chân cách đáy khoảng 1/8.
 - **Hào quang**: nằm trong khung, không bị cắt; có thể tràn gần mép nhưng không chạm mép.
 - **Không có**: chữ (trừ chi tiết cố ý của lớp, mục 3), watermark, chữ ký, khung viền.
 - **Nhất quán giữa các bậc**: cùng một nhân vật lớn lên theo bậc. Khuôn mặt, kiểu tóc và màu chủ đạo giữ nguyên; chỉ trang phục và hào quang thay đổi.
+
+## 2b. Cách dựng nhân vật (quan trọng)
+
+- **Hình chính là hình của lớp**: mỗi lớp có một concept riêng (mục 3). Mọi bậc của lớp đó phải nhận ra là cùng một nhân vật.
+- **Giới tính**: Nam và Nữ khác nhau ở dáng người và kiểu tóc, giữ nguyên bản sắc của lớp.
+- **Theo bậc**: hào quang tăng dần (mục 5). Trang phục và ngoại quan chỉ thay đổi nhẹ theo bậc (thêm trang trí, thêm lụa bay, vương miện ở bậc cao), không làm đổi nhân vật.
+- **Prompt đầy đủ**: `docs/art/realm-prompts.csv`, mỗi dòng đã ghi lớp, giới, bậc, hào quang và đường dẫn file.
 
 ## 3. Bảy lớp nhân vật
 
