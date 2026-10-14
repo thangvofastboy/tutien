@@ -438,7 +438,7 @@ Mod chạy trên máy người chơi nên không chặn được tuyệt đối.
 ### 21.3 Bảo vệ khóa
 - Khóa chỉ lưu trong `$.store`, không hiện trên giao diện hay trong log.
 - `/tutien khoa-moi`: tạo khóa mới, khóa cũ vô hiệu ngay. Server chỉ lưu SHA-256 của khóa.
-- Sai khóa nhiều lần (từ 20 lần trong một giờ): các lần **sai** tiếp theo bị từ chối (429) đến hết giờ. **Khóa đúng luôn được chấp nhận**, để người khác không thể khóa tài khoản của ai đó chỉ bằng cách gửi khóa sai.
+- Sai khóa nhiều lần (từ 20 lần trong một giờ): các lần **sai** tiếp theo bị từ chối (429) đến hết giờ. **Khóa đúng luôn được chấp nhận**, để người khác không thể khóa tài khoản của ai đó chỉ bằng cách gửi khóa sai. Giới hạn này không nhằm chặn đoán khóa: khóa là UUID ngẫu nhiên 122 bit do server sinh, nên không đoán được trong thực tế.
 
 ### 21.4 Đối chiếu với transcript
 - Mỗi ngày một lần (khi mở Claude Code), mod đọc transcript Claude Code trên máy (`~/.claude/projects/**/*.jsonl`) bằng `$.fs`, cộng token của ngày hôm trước theo cùng công thức (input + output + cache write, bỏ trùng theo id tin nhắn và request), rồi gửi tổng lên server.
