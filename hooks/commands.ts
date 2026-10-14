@@ -13,6 +13,7 @@ export const HELP = [
   '/tutien truyen                         đọc cốt truyện đã mở',
   '/tutien khoa-moi                       đổi khóa bí mật khi nghi bị lộ',
   '/tutien update                         cập nhật bản đã ký mới nhất',
+  '/tutien setting                        mở pane cài đặt',
   '/tutien help                           danh sách này',
 ].join('\n')
 

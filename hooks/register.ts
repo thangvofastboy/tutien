@@ -5,7 +5,7 @@ import { callServer, SERVER } from './api'
 import { CLASSES, GENDERS } from './rules'
 import { HELP, tokens, parseRegister, parseReset, formatTop } from './commands'
 import { statusText } from './display'
-import { refreshPane, renderPane, renderBand, setPlayer, PANE_ID } from './pane'
+import { refreshPane, renderPane, renderBand, renderSettings, setPlayer, PANE_ID, SETTINGS_ID } from './pane'
 import { PERSONAS, personaById, buildPersonaPrompt, parsePersonaLines } from './persona'
 import { PROLOGUE, unlockedChapters } from './story'
 
@@ -31,6 +31,7 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => renderPane($, e))
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => renderBand($, e, next))
+  on('ui.render', { component: 'Pane', requestId: SETTINGS_ID }, async ($, e) => renderSettings($, e))
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
@@ -139,6 +140,10 @@ export const register: Register = on => {
         if (!res.ok || !res.data?.key) return { text: 'Không đổi được khóa (chưa ghi danh, khóa sai, hoặc server lỗi).' }
         await $.store.set('tutien.key', res.data.key)
         return { text: 'Đã đổi khóa. Khóa cũ không còn dùng được.' }
+      }
+      case 'setting': case 'caidat': {
+        await $.ui.open({ id: SETTINGS_ID, title: 'Cài đặt Tu Tiên' })
+        return { text: 'Đã mở cài đặt.' }
       }
       case 'hienthi': {
         const mode = (rest[0] ?? '').trim()

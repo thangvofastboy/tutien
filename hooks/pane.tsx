@@ -5,14 +5,21 @@ import { REALM_NAMES, type Player } from './rules'
 import { tribEffect, overlayFrame, effectActive } from './effects'
 import { paneLine } from './persona'
 import { bandLines } from './band'
+import { SETTINGS, withDefaults } from './settings'
 
 const PANE = 'tu-tien'
 const me = atom({ plugin: 'tutien', key: 'me' } as const, undefined as Player | undefined)
 const effect = atom({ plugin: 'tutien', key: 'effect' } as const, null as { kind: string; until: number } | null)
 const tick = atom({ plugin: 'tutien', key: 'tick' } as const, 0)
+const settingsTick = atom({ plugin: 'tutien', key: 'settingsTick' } as const, 0)
+
+async function setting($: any, key: string): Promise<string | undefined> {
+  return (await $.store.get(key)) as string | undefined
+}
 
 // Bật hiệu ứng thiên phạt rồi tự tắt sau đúng thời lượng (spec 14). Khung hình đổi mỗi 250 ms.
 export async function showEffect($: any, kind: string, ms: number): Promise<void> {
+  if ((await setting($, 'tutien.effects')) === 'off') return
   await update($, effect, () => ({ kind, until: Date.now() + ms }))
   const timer = $.clock.every(250, () => void update($, tick, (t: number) => t + 1))
   $.clock.after(ms, () => {
@@ -44,13 +51,14 @@ export async function setPlayer($: any, player: Player): Promise<void> {
 // Dòng trạng thái dưới ô nhập (luôn hiện): tên, cảnh giới, tiến độ hoặc thời gian thiên phạt.
 export async function showStatus($: any, player: Player | undefined): Promise<void> {
   const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
-  if (!player || !name) return $.ui.status(undefined)
+  if (!player || !name || (await setting($, 'tutien.statusline')) === 'off') return $.ui.status(undefined)
   const [top, bottom] = bandLines(name, player, Date.now())
   $.ui.status(`${top} · ${bottom}`)
 }
 
 // Khung chữ nhỏ căn phải phía trên ô nhập (dải AbovePrompt).
 export async function renderBand($: any, e: any, next: any) {
+  if ((await setting($, 'tutien.band')) === 'off') return next(e)
   const { Box, Text } = $.ui.resolve(e)
   const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
   const p = await read($, me)
@@ -117,6 +125,41 @@ export async function renderPane($: any, e: any) {
       <Text>{statusText(p, Date.now())}</Text>
       <Text italic>{line}</Text>
       <Text dimColor>Tiến độ bậc: {percentExp(p)}%</Text>
+    </Box>
+  )
+}
+
+// Pane Cài đặt (/tutien setting): mỗi mục một Select; chọn là lưu ngay vào $.store.
+export const SETTINGS_ID = 'tu-tien-settings'
+
+export async function renderSettings($: any, e: any) {
+  const { Box, Text, Select } = $.ui.resolve(e)
+  await read($, settingsTick) // đăng ký vẽ lại khi có thay đổi
+  const stored: Record<string, unknown> = {}
+  for (const s of SETTINGS) stored[s.key] = await $.store.get(s.key)
+  const values = withDefaults(stored)
+  return (
+    <Box flexDirection="column">
+      <Text bold>Cài đặt Tu Tiên</Text>
+      {SETTINGS.map(s => (
+        <Select
+          key={s.key}
+          label={s.label}
+          options={s.options}
+          value={values[s.key]}
+          onSelect={(v: string) => {
+            void (async () => {
+              await $.store.set(s.key, v)
+              await update($, settingsTick, (n: number) => n + 1)
+              if (s.key === 'tutien.statusline' || s.key === 'tutien.band') {
+                const p = await read($, me)
+                await showStatus($, p)
+              }
+            })()
+          }}
+        />
+      ))}
+      <Text dimColor>Thay đổi được lưu ngay trên máy này.</Text>
     </Box>
   )
 }

@@ -18,6 +18,7 @@ declare module 'claude-code' {
       me: TutienPlayer | undefined
       effect: { kind: string; until: number } | null
       tick: number
+      settingsTick: number
     }
   }
 }
