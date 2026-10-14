@@ -174,7 +174,13 @@ export async function runUpdate($: any): Promise<string> {
     $.process.run(['git', ...args], { cwd: root, timeoutMs: 120_000 })
 
   if ((await git('rev-parse', '--is-inside-work-tree')).exitCode !== 0) {
-    return 'Bản này được cài từ marketplace. Cập nhật bằng: /plugin update tutien rồi /reload-plugins.'
+    // Bản cài từ marketplace không phải git clone: nhờ CLI cập nhật rồi nạp lại plugin.
+    const up = await $.process.run(['claude', 'plugin', 'update', 'tutien'], { timeoutMs: 300_000 }).catch(() => null)
+    if (!up || up.exitCode !== 0) {
+      return `Không tự cập nhật được. Chạy thủ công: /plugin update tutien rồi /reload-plugins.\n${up?.stderr ?? ''}`
+    }
+    $.clock.after(0, () => void $.command.run({ command: 'reload-plugins' }))
+    return `Đã cập nhật tutien (${up.stdout.trim() || 'xong'}); đang nạp lại plugin.`
   }
 
   const dirty = await git('status', '--porcelain', '--untracked-files=no')

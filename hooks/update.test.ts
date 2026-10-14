@@ -162,3 +162,24 @@ test('#7 đã ở bản mới nhất thì không reload plugin', async ($, on) =
   expect(text).toBe('Already at v1.2.0.')
   expect(reloads).toEqual([])
 })
+
+test('/tutien update với bản cài từ marketplace: chạy claude plugin update rồi reload', async ($, on) => {
+  const ran: string[] = []
+  const reloads: string[] = []
+  on('process.run', async ($, e) => {
+    const args = e.argv.join(' ')
+    ran.push(args)
+    if (args.startsWith('git rev-parse --is-inside-work-tree')) {
+      return { value: { exitCode: 128, stdout: '', stderr: 'not a git repository', isStdoutTruncated: false, isStderrTruncated: false } }
+    }
+    if (args === 'claude plugin update tutien') return ok('Updated tutien\n')
+    return ok('')
+  })
+  on('command.run', { command: 'reload-plugins' }, async ($, e) => { reloads.push(e.command); return { text: '' } })
+  const clock = mock.clock(on)
+  const { text } = await $.command.run(RUN)
+  await clock.advance(0)
+  expect(ran).toContain('claude plugin update tutien')
+  expect(text).toContain('Đã cập nhật')
+  expect(reloads).toEqual(['reload-plugins'])
+})
