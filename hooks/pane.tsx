@@ -5,7 +5,7 @@ import { REALM_NAMES, type Player } from './rules'
 import { tribEffect, overlayFrame, effectActive } from './effects'
 import { paneLine } from './persona'
 import { bandLines, classIcon } from './band'
-import { SETTINGS, PANEL_BG, withDefaults } from './settings'
+import { SETTINGS, PANEL_BG, THEMES, TEXT_SIZES, withDefaults } from './settings'
 import { STEPS, initWizard, advance, type Wizard } from './start'
 import { PROLOGUE, CLASS_ORIGINS, STARTER_QUESTS } from './story'
 import { CLASSES, GENDERS } from './rules'
@@ -30,6 +30,14 @@ const typed = atom({ plugin: 'tutien', key: 'typed' } as const, 0)
 
 async function setting($: any, key: string): Promise<string | undefined> {
   return (await $.store.get(key)) as string | undefined
+}
+
+// Theme và cỡ chữ đang chọn; giá trị lạ thì về mặc định.
+async function look($: any) {
+  return {
+    th: THEMES[(await setting($, 'tutien.theme')) ?? ''] ?? THEMES['mac-dinh'],
+    sz: TEXT_SIZES[(await setting($, 'tutien.textsize')) ?? ''] ?? TEXT_SIZES.vua,
+  }
 }
 
 // Bật hiệu ứng thiên phạt rồi tự tắt sau đúng thời lượng (spec 14). Khung hình đổi mỗi 250 ms.
@@ -173,21 +181,23 @@ export async function renderPane($: any, e: any) {
     if (cells) art = <Raster key="realm" columns={CELL_COLS} rows={CELL_ROWS} cells={String(cells).trim()} />
   }
 
+  await read($, settingsTick) // đổi cài đặt thì vẽ lại ngay
   const bg = PANEL_BG[(await setting($, 'tutien.panelbg')) ?? 'terminal']
+  const { th, sz } = await look($)
   const inf = await read($, info)
   const lines = boardLines(await read($, board), ((await $.store.get('tutien.name')) as string | undefined) ?? '')
   return (
     <Box flexDirection="column" backgroundColor={bg}>
       {overlay}
       {art}
-      <Text color={toneOf(p, Date.now())}>{stateIcon(p)} {statusText(p, Date.now())}</Text>
-      <Text italic color="remember">💬 {line}</Text>
-      <Text dimColor>📈 Tiến độ bậc: {percentExp(p)}%</Text>
-      {inf ? <Text dimColor>📅 Nhiệm vụ ngày: {inf.quest}%{inf.tong ? ` · 🏯 ${inf.tong}` : ''}</Text> : null}
-      {inf?.bicanh ? <Text dimColor>🌀 {inf.bicanh}</Text> : null}
-      {inf?.tamma !== null && inf?.tamma !== undefined ? <Text color="error">👹 Xua đuổi Tâm Ma: {inf.tamma}%</Text> : null}
-      {lines.length ? <Text bold color="suggestion">🏆 Bảng Tu Vi</Text> : null}
-      {lines.map(l => <Text key={`b-${l.text}`} color={l.mine ? 'success' : undefined} bold={l.mine}>{l.text}</Text>)}
+      <Text size={sz.title} color={toneOf(p, Date.now())}>{stateIcon(p)} {statusText(p, Date.now())}</Text>
+      <Text size={sz.body} italic color={th.quote}>💬 {line}</Text>
+      <Text size={sz.body} dimColor>📈 Tiến độ bậc: {percentExp(p)}%</Text>
+      {inf ? <Text size={sz.body} dimColor>📅 Nhiệm vụ ngày: {inf.quest}%{inf.tong ? ` · 🏯 ${inf.tong}` : ''}</Text> : null}
+      {inf?.bicanh ? <Text size={sz.body} dimColor>🌀 {inf.bicanh}</Text> : null}
+      {inf?.tamma !== null && inf?.tamma !== undefined ? <Text size={sz.body} color="error">👹 Xua đuổi Tâm Ma: {inf.tamma}%</Text> : null}
+      {lines.length ? <Text size={sz.title} bold color={th.title}>🏆 Bảng Tu Vi</Text> : null}
+      {lines.map(l => <Text key={`b-${l.text}`} size={sz.body} color={l.mine ? th.mine : undefined} bold={l.mine}>{l.text}</Text>)}
     </Box>
   )
 }
@@ -224,9 +234,10 @@ export async function renderSettings($: any, e: any) {
   const stored: Record<string, unknown> = {}
   for (const s of SETTINGS) stored[s.key] = await $.store.get(s.key)
   const values = withDefaults(stored)
+  const { th, sz } = await look($)
   return (
     <Box flexDirection="column">
-      <Text bold color="suggestion">⚙️ Cài đặt Tu Tiên</Text>
+      <Text size={sz.title} bold color={th.title}>⚙️ Cài đặt Tu Tiên</Text>
       {SETTINGS.map(s => choice(els, {
           key: s.key,
           label: s.label,
@@ -243,7 +254,7 @@ export async function renderSettings($: any, e: any) {
             })()
           },
         }))}
-      <Text dimColor>💾 Thay đổi được lưu ngay trên máy này.</Text>
+      <Text size={sz.body} dimColor>💾 Thay đổi được lưu ngay trên máy này.</Text>
     </Box>
   )
 }

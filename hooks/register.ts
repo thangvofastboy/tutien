@@ -159,7 +159,7 @@ export const register: Register = on => {
         if (out.ok) await refreshPane($) // ghi lại trạng thái kèm bảng xếp hạng cho trang
         return { text: out.text }
       }
-      case 'setting': case 'caidat': {
+      case 'setting': case 'settings': case 'caidat': {
         await $.ui.open({ id: SETTINGS_ID, title: 'Cài đặt Tu Tiên' })
         return { text: 'Đã mở cài đặt.' }
       }

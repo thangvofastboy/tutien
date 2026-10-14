@@ -39,6 +39,21 @@ test('Claude Code Desktop: wizard /tutien start và pane Cài đặt vẽ đư�
   await set.unmount()
 })
 
+test('Claude Code Desktop: cỡ chữ Lớn và theme Kim Đan đổi chữ trong pane', async ($, on) => {
+  await withPlayer($, on)
+  const set = await $.ui.mount({ plugin: 'tutien', surface: 'mobile', component: 'Pane', requestId: 'tu-tien-settings', props: { title: 'Cài đặt', bodyColumns: 80 } } as any)
+  await set.press({ key: 'tutien.textsize:lon' })
+  await set.press({ key: 'tutien.theme:kim-dan' })
+  await set.unmount()
+  const ui = await $.ui.mount({ plugin: 'tutien', surface: 'desktop', component: 'Pane', requestId: 'tu-tien', props: { title: 'Tu tiên', bodyColumns: 80 } } as any)
+  const title = await ui.find({ type: 'Text', text: /Bảng Tu Vi/ })
+  expect(title?.props.size).toBe('title')
+  expect(title?.props.color).toBe('#e3b341')
+  expect((await ui.find({ type: 'Text', text: /Tiến độ bậc/ }))?.props.size).toBe('heading')
+  expect((await ui.find({ type: 'Text', text: /9\. ThangVo/ }))?.props.color).toBe('#ffa657')
+  await ui.unmount()
+})
+
 test('svgSprite nhúng PNG và giữ nét pixel', () => {
   const s = svgSprite('QUJD')
   expect(s).toContain('data:image/png;base64,QUJD')

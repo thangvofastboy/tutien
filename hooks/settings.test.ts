@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { SETTINGS, PANEL_BG, isValidSetting, withDefaults } from './settings'
+import { SETTINGS, PANEL_BG, THEMES, TEXT_SIZES, isValidSetting, withDefaults } from './settings'
 
 test('có đủ các mục cài đặt, mỗi mục có nhãn tiếng Việt, lựa chọn và mặc định hợp lệ', () => {
   const keys = SETTINGS.map(s => s.key)
@@ -31,4 +31,13 @@ test('màu nền panel: mặc định theo terminal (không tô), các màu khá
   expect(PANEL_BG.ink).toMatch(/^#[0-9a-f]{6}$/)
   expect(isValidSetting('tutien.panelbg', 'navy')).toBe(true)
   expect(isValidSetting('tutien.panelbg', '#ff0000')).toBe(false)
+})
+
+test('theme và cỡ chữ: mặc định là Mặc định và Vừa, mỗi lựa chọn có bảng màu hoặc bậc cỡ chữ', () => {
+  const v = withDefaults({})
+  expect(v['tutien.theme']).toBe('mac-dinh')
+  expect(v['tutien.textsize']).toBe('vua')
+  for (const o of SETTINGS.find(s => s.key === 'tutien.theme')!.options) expect(THEMES[o.value]).toBeDefined()
+  for (const o of SETTINGS.find(s => s.key === 'tutien.textsize')!.options) expect(TEXT_SIZES[o.value]).toBeDefined()
+  expect(isValidSetting('tutien.textsize', 'khong-lo')).toBe(false)
 })
