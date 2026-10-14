@@ -124,6 +124,12 @@ export const register: Register = on => {
         const body = [PROLOGUE, ...chapters.map(c => `${c.title}\n${c.text}`)].join('\n\n')
         return { text: body }
       }
+      case 'khoa-moi': {
+        const res = await callServer<{ key: string }>($, '/rotate-key', {})
+        if (!res.ok || !res.data?.key) return { text: 'Không đổi được khóa (chưa ghi danh, khóa sai, hoặc server lỗi).' }
+        await $.store.set('tutien.key', res.data.key)
+        return { text: 'Đã đổi khóa. Khóa cũ không còn dùng được.' }
+      }
       case 'hienthi': {
         const mode = (rest[0] ?? '').trim()
         if (!['image', 'raster', 'text'].includes(mode)) {

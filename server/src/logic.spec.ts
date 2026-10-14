@@ -122,3 +122,57 @@ test('bảng Tu vi hiện phần trăm tiến độ bậc', () => {
   const rows = publicBoard(boards([a], NOW).tuVi, 'tu-vi', NOW)
   assert.equal(rows[0].score, 50)
 })
+
+import { MAX_TOKENS_PER_HOUR, MAX_TOKENS_PER_DAY, FLAG_AT } from './logic.ts'
+
+test('trần mỗi giờ: phần vượt không được cộng', () => {
+  let st = register('g', 'Thể Tu', 'Nam', 'h')
+  for (let i = 0; i < 3; i++) st = handleUsage(st, { turnId: `h${i}`, tokens: 4_000_000 }, NOW + i * 1000, never).state
+  assert.equal(st.lifetimeTokens, MAX_TOKENS_PER_HOUR)
+})
+
+test('trần mỗi ngày: phần vượt không được cộng', () => {
+  let st = register('d', 'Thể Tu', 'Nam', 'h')
+  for (let i = 0; i < 6; i++) st = handleUsage(st, { turnId: `d${i}`, tokens: 5_000_000 }, NOW + i * 3_600_000, never).state
+  for (let i = 0; i < 6; i++) st = handleUsage(st, { turnId: `e${i}`, tokens: 5_000_000 }, NOW + (6 + i) * 3_600_000, never).state
+  assert.equal(st.weekTokens[DAY_KEY(NOW)] <= MAX_TOKENS_PER_DAY, true)
+})
+
+test('lượt vượt trần mỗi lượt cộng điểm nghi ngờ', () => {
+  let st = register('s', 'Thể Tu', 'Nam', 'h')
+  st = handleUsage(st, { turnId: 'big', tokens: 9_000_000 }, NOW, never).state
+  assert.equal(st.suspicion >= 3, true)
+})
+
+test('5 lượt liên tiếp giống hệt nhau cộng điểm nghi ngờ', () => {
+  let st = register('r', 'Thể Tu', 'Nam', 'h')
+  for (let i = 0; i < 6; i++) st = handleUsage(st, { turnId: `r${i}`, tokens: 1234 }, NOW + i * 60_000, never).state
+  assert.equal(st.suspicion >= 2, true)
+})
+
+test('lượt đến gần như cùng lúc (dưới 50 ms) cộng điểm nghi ngờ', () => {
+  let st = register('b', 'Thể Tu', 'Nam', 'h')
+  st = handleUsage(st, { turnId: 'b1', tokens: 1000 }, NOW, never).state
+  st = handleUsage(st, { turnId: 'b2', tokens: 2000 }, NOW + 10, never).state
+  assert.equal(st.suspicion >= 1, true)
+})
+
+test('bị đánh dấu: EXP vẫn tăng nhưng không vào thiên phạt và bị ẩn khỏi bảng', () => {
+  let st = register('f', 'Thể Tu', 'Nam', 'h')
+  st = { ...st, suspicion: FLAG_AT }
+  st = handleUsage(st, { turnId: 'f1', tokens: 5_000_000 }, NOW, never).state
+  assert.equal(st.player.trib, undefined)
+  assert.equal(st.player.exp < need(1), true)
+  assert.equal(boards([st], NOW).tuVi.length, 0)
+})
+
+import { recordFail, isLocked } from './logic.ts'
+
+test('sai khóa 20 lần trong một giờ thì bị khóa tạm, sang giờ sau thì mở', () => {
+  let st = register('k', 'Thể Tu', 'Nam', 'h')
+  for (let i = 0; i < 19; i++) st = recordFail(st, NOW + i)
+  assert.equal(isLocked(st, NOW + 100), false)
+  st = recordFail(st, NOW + 200)
+  assert.equal(isLocked(st, NOW + 300), true)
+  assert.equal(isLocked(st, NOW + 3_600_000 + 1000), false)
+})

@@ -17,7 +17,7 @@ const GENDERS = ['Nam', 'Nữ']
 const NAME = /^[\p{L}\p{N}_-]{1,24}$/u
 const BOARDS = { 'tu-vi': 'tuVi', chamchi: 'chamChi', tuan: 'tuan', phoenix: 'phoenix', phapbao: 'phapBao' } as const
 // Only these player routes are reachable from outside; DO-internal routes (/init, /verify) are not.
-const PLAYER_ROUTES: Record<string, 'GET' | 'POST'> = { '/usage': 'POST', '/appearance': 'POST', '/reset': 'POST', '/me': 'GET' }
+const PLAYER_ROUTES: Record<string, 'GET' | 'POST'> = { '/usage': 'POST', '/appearance': 'POST', '/reset': 'POST', '/me': 'GET', '/rotate-key': 'POST' }
 
 const sha256 = async (s: string) => {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))
@@ -43,6 +43,16 @@ export default {
       const next = addRelease(await releases(), tag)
       await roster.fetch('https://do/releases', { method: 'POST', body: JSON.stringify({ releases: next }) })
       return json({ releases: next })
+    }
+
+    if (url.pathname === '/admin/clear' && req.method === 'POST') {
+      if (!env.ADMIN_TOKEN || req.headers.get('authorization') !== `Bearer ${env.ADMIN_TOKEN}`) {
+        return json({ error: 'forbidden' }, 403)
+      }
+      const { name } = (await req.json()) as { name: string }
+      if (typeof name !== 'string' || !NAME.test(name)) return json({ error: 'bad name' }, 400)
+      const res = await playerStub(name).fetch('https://do/admin-clear', { method: 'POST', body: '{}' })
+      return json({ ok: res.ok }, res.ok ? 200 : 404)
     }
 
     if (url.pathname === '/leaderboard' && req.method === 'GET') {
@@ -82,7 +92,14 @@ export default {
     if (!key || !name || !NAME.test(name)) return json({ error: 'unauthorized' }, 401)
     const stub = playerStub(name)
     const verify = await stub.fetch('https://do/verify', { method: 'POST', body: JSON.stringify({ keyHash: await sha256(key) }) })
+    if (verify.status === 429) return json({ error: 'locked', message: 'Sai khóa quá nhiều lần, thử lại sau một giờ.' }, 429)
     if (verify.status !== 200) return json({ error: 'unauthorized' }, 401)
+
+    if (url.pathname === '/rotate-key') {
+      const fresh = crypto.randomUUID()
+      await stub.fetch('https://do/rotate', { method: 'POST', body: JSON.stringify({ keyHash: await sha256(fresh) }) })
+      return json({ key: fresh })
+    }
 
     let body: any = undefined
     if (req.method === 'POST') {

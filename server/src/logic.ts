@@ -3,6 +3,10 @@ import { applyUsage, newPlayer, effects, need, REALM_NAMES, type Player } from '
 
 export const SEEN_LIMIT = 1000
 export const MAX_TOKENS_PER_TURN = 5_000_000
+export const MAX_TOKENS_PER_HOUR = 10_000_000
+export const MAX_TOKENS_PER_DAY = 40_000_000
+export const FLAG_AT = 10 // từ 10 điểm nghi ngờ: ẩn khỏi bảng, không lên bậc (spec 21.2)
+const HOUR_KEY = (now: number) => new Date(now).toISOString().slice(0, 13)
 export const validTurnId = (id: unknown) => typeof id === 'string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(id)
 export const DAY_MS = 86_400_000
 export const DAY_KEY = (now: number) => new Date(now).toISOString().slice(0, 10)
@@ -16,6 +20,10 @@ export type State = {
   weekTokens: Record<string, number>
   deaths: number
   resets: number
+  hourTokens?: Record<string, number>
+  suspicion?: number
+  recent?: number[]
+  lastAt?: number
 }
 
 export function register(name: string, cls: string, gender: string, keyHash: string): State {
@@ -30,23 +38,46 @@ export function handleUsage(
 ): { state: State; events: string[]; duplicate: boolean; invalid?: boolean } {
   if (!validTurnId(body.turnId)) return { state: st, events: [], duplicate: false, invalid: true }
   if (st.seen.includes(body.turnId)) return { state: st, events: [], duplicate: true }
-  // Client-reported: clamp to the per-turn ceiling (spec 21.1); hourly and daily caps come in the anti-cheat task.
-  const tokens = Math.min(MAX_TOKENS_PER_TURN, Math.max(0, Math.floor(Number(body.tokens) || 0)))
-  const { p, events } = applyUsage(st.player, tokens, now, rng)
+  const raw = Math.max(0, Math.floor(Number(body.tokens) || 0))
+
+  // Điểm nghi ngờ (spec 21.2).
+  let suspicion = st.suspicion ?? 0
+  if (raw > MAX_TOKENS_PER_TURN) suspicion += 3
+  const recent = [...(st.recent ?? []), raw].slice(-5)
+  if (recent.length === 5 && recent.every(v => v === raw) && raw > 0) suspicion += 2
+  if (st.lastAt !== undefined && now - st.lastAt < 50) suspicion += 1
+
+  // Trần mỗi lượt, mỗi giờ, mỗi ngày (spec 21.1): phần vượt không được cộng.
+  const hour = HOUR_KEY(now)
   const day = DAY_KEY(now)
+  const hourUsed = st.hourTokens?.[hour] ?? 0
+  const dayUsed = st.weekTokens[day] ?? 0
+  const tokens = Math.max(0, Math.min(raw, MAX_TOKENS_PER_TURN, MAX_TOKENS_PER_HOUR - hourUsed, MAX_TOKENS_PER_DAY - dayUsed))
+
+  let { p, events } = applyUsage(st.player, tokens, now, rng)
+  // Bị đánh dấu: EXP vẫn tính nhưng không vào thiên phạt, không lên bậc.
+  if (suspicion >= FLAG_AT && (p.realm !== st.player.realm || (p.trib && !st.player.trib))) {
+    p = { ...st.player, exp: Math.min(need(st.player.realm) - 1, st.player.exp + Math.floor(tokens / 1000)) }
+    events = []
+  }
+
   const weekTokens: Record<string, number> = {}
   const cutoff = now - 7 * DAY_MS
   for (const [k, v] of Object.entries(st.weekTokens)) {
     if (Date.parse(k) >= cutoff - DAY_MS) weekTokens[k] = v
   }
-  weekTokens[day] = (weekTokens[day] ?? 0) + tokens
+  weekTokens[day] = dayUsed + tokens
   const next: State = {
     ...st,
     player: p,
     seen: [...st.seen, body.turnId].slice(-SEEN_LIMIT),
     lifetimeTokens: st.lifetimeTokens + tokens,
     weekTokens,
+    hourTokens: { [hour]: hourUsed + tokens },
     deaths: st.deaths + (events.includes('death') ? 1 : 0),
+    suspicion,
+    recent,
+    lastAt: now,
   }
   return { state: next, events, duplicate: false }
 }
@@ -59,7 +90,7 @@ export function handleReset(st: State, cls: string, gender: string): State {
   }
 }
 
-export type Row = { name: string; cls: string; gender: string; realm: number; exp: number; pct: number; lifetimeTokens: number; week: number; deaths: number; artifacts: number }
+export type Row = { name: string; cls: string; gender: string; realm: number; exp: number; pct: number; lifetimeTokens: number; week: number; deaths: number; artifacts: number; flagged?: boolean }
 
 export function row(st: State, now: number): Row {
   const cutoff = now - 7 * DAY_MS
@@ -71,6 +102,7 @@ export function row(st: State, now: number): Row {
     exp: st.player.exp, pct: Math.min(100, Math.floor((st.player.exp / need(st.player.realm)) * 100)),
     lifetimeTokens: st.lifetimeTokens, week, deaths: st.deaths,
     artifacts: st.player.artifacts.length,
+    flagged: (st.suspicion ?? 0) >= FLAG_AT,
   }
 }
 
@@ -79,7 +111,8 @@ export function boards(states: State[], now: number) {
   return sortBoards(states.map(s => row(s, now)))
 }
 
-export function sortBoards(rows: Row[]) {
+export function sortBoards(all: Row[]) {
+  const rows = all.filter(r => !r.flagged) // người bị đánh dấu bị ẩn khỏi mọi bảng
   const by = (cmp: (a: Row, b: Row) => number) => [...rows].sort((a, b) => cmp(a, b) || a.name.localeCompare(b.name))
   return {
     tuVi: by((a, b) => b.realm - a.realm || b.exp - a.exp),
@@ -118,4 +151,14 @@ export function publicBoard(rows: Row[], board: string, _now: number): PublicRow
     }
   }
   return rows.map((r, i) => ({ rank: i + 1, name: r.name, cls: r.cls, realm: r.realm, score: score(r) }))
+}
+
+// Khóa tạm khi sai khóa nhiều (spec 21.3): từ 20 lần sai trong cùng một giờ.
+export const FAIL_LIMIT = 20
+export function recordFail(st: State & { fails?: Record<string, number> }, now: number) {
+  const h = HOUR_KEY(now)
+  return { ...st, fails: { [h]: (st.fails?.[h] ?? 0) + 1 } }
+}
+export function isLocked(st: State & { fails?: Record<string, number> }, now: number): boolean {
+  return (st.fails?.[HOUR_KEY(now)] ?? 0) >= FAIL_LIMIT
 }

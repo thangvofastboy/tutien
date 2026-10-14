@@ -11,6 +11,7 @@ export const HELP = [
   '/tutien hienthi image|raster|text      cách vẽ nhân vật trong pane',
   '/tutien persona <tên>                  chọn tính cách nhân vật (giọng nói)',
   '/tutien truyen                         đọc cốt truyện đã mở',
+  '/tutien khoa-moi                       đổi khóa bí mật khi nghi bị lộ',
   '/tutien update                         cập nhật bản đã ký mới nhất',
   '/tutien help                           danh sách này',
 ].join('\n')
