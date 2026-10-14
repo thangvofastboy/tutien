@@ -5,7 +5,7 @@ import { callServer, SERVER } from './api'
 import { CLASSES, GENDERS } from './rules'
 import { HELP, tokens, parseRegister, parseReset, formatTop } from './commands'
 import { statusText } from './display'
-import { refreshPane, renderPane, PANE_ID } from './pane'
+import { refreshPane, renderPane, renderBand, setPlayer, PANE_ID } from './pane'
 import { PERSONAS, personaById, buildPersonaPrompt, parsePersonaLines } from './persona'
 import { PROLOGUE, unlockedChapters } from './story'
 
@@ -30,6 +30,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => renderPane($, e))
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => renderBand($, e, next))
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)

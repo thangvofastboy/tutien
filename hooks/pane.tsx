@@ -4,6 +4,7 @@ import { statusText, percentExp } from './display'
 import { REALM_NAMES, type Player } from './rules'
 import { tribEffect, overlayFrame, effectActive } from './effects'
 import { paneLine } from './persona'
+import { bandLines } from './band'
 
 const PANE = 'tu-tien'
 const me = atom({ plugin: 'tutien', key: 'me' } as const, undefined as Player | undefined)
@@ -37,14 +38,36 @@ export const realmImage = (root: string, p: Player) =>
 export async function setPlayer($: any, player: Player): Promise<void> {
   await update($, me, () => player)
   await $.store.set('tutien.realm', player.realm)
+  await showStatus($, player)
+}
+
+// Dòng trạng thái dưới ô nhập (luôn hiện): tên, cảnh giới, tiến độ hoặc thời gian thiên phạt.
+export async function showStatus($: any, player: Player | undefined): Promise<void> {
+  const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
+  if (!player || !name) return $.ui.status(undefined)
+  const [top, bottom] = bandLines(name, player, Date.now())
+  $.ui.status(`${top} · ${bottom}`)
+}
+
+// Khung chữ nhỏ căn phải phía trên ô nhập (dải AbovePrompt).
+export async function renderBand($: any, e: any, next: any) {
+  const { Box, Text } = $.ui.resolve(e)
+  const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
+  const p = await read($, me)
+  const [top, bottom] = bandLines(name || 'Tu tiên', p, Date.now())
+  return (
+    <Box flexDirection="row" justifyContent="flex-end">
+      <Box flexDirection="column" borderStyle="round" paddingX={1}>
+        <Text>{top}</Text>
+        <Text dimColor>{bottom}</Text>
+      </Box>
+    </Box>
+  )
 }
 
 export async function refreshPane($: any): Promise<void> {
   const res = await callServer<{ player: Player }>($, '/me').catch(() => undefined)
-  if (res?.ok && res.data) {
-    await update($, me, () => res.data!.player)
-    await $.store.set('tutien.realm', res.data.player.realm)
-  }
+  if (res?.ok && res.data) await setPlayer($, res.data.player)
 }
 
 export const PANE_ID = PANE
