@@ -17,7 +17,7 @@ const GENDERS = ['Nam', 'Nữ']
 const NAME = /^[\p{L}\p{N}_-]{1,24}$/u
 const BOARDS = { 'tu-vi': 'tuVi', chamchi: 'chamChi', tuan: 'tuan', phoenix: 'phoenix', phapbao: 'phapBao' } as const
 // Only these player routes are reachable from outside; DO-internal routes (/init, /verify) are not.
-const PLAYER_ROUTES = new Set(['/usage', '/appearance', '/reset', '/me'])
+const PLAYER_ROUTES: Record<string, 'GET' | 'POST'> = { '/usage': 'POST', '/appearance': 'POST', '/reset': 'POST', '/me': 'GET' }
 
 const sha256 = async (s: string) => {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))
@@ -70,7 +70,10 @@ export default {
       return json({ key }, 201)
     }
 
-    if (!PLAYER_ROUTES.has(url.pathname)) return json({ error: 'not found' }, 404)
+    const method = PLAYER_ROUTES[url.pathname]
+    if (!method) return json({ error: 'not found' }, 404)
+    // Each route has exactly one method; validation below runs for every write, never skipped by method.
+    if (req.method !== method) return json({ error: 'method not allowed' }, 405)
 
     const auth = req.headers.get('authorization') ?? ''
     const key = auth.startsWith('Bearer ') ? auth.slice(7) : ''

@@ -1,6 +1,10 @@
 /// <reference types="@cloudflare/workers-types" />
 // Durable Object một người chơi: giữ State, áp luật qua logic.ts.
 import { handleUsage, handleReset, row, type State } from './logic.ts'
+import { CLASSES as C, GENDERS as G } from '../../hooks/rules.ts'
+
+const CLASSES: readonly string[] = C
+const GENDERS: readonly string[] = G
 
 export class PlayerDO {
   constructor(private state: DurableObjectState) {}
@@ -30,6 +34,10 @@ export class PlayerDO {
       const out = handleUsage(st, body, Date.now(), Math.random)
       if (!out.duplicate) await this.state.storage.put('st', out.state)
       return Response.json({ player: out.state.player, events: out.events, duplicate: out.duplicate })
+    }
+    const look = CLASSES.includes(body?.cls) && GENDERS.includes(body?.gender)
+    if ((url.pathname === '/appearance' || url.pathname === '/reset') && (req.method !== 'POST' || !look)) {
+      return Response.json({ error: 'bad appearance' }, { status: 400 })
     }
     if (url.pathname === '/appearance') {
       const next = { ...st, player: { ...st.player, cls: body.cls, gender: body.gender } }
