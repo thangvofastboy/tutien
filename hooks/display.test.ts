@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { percentExp, timeLeft, barColor, statusText } from './display'
+import { percentExp, timeLeft, barColor, statusText, stateIcon, toneOf } from './display'
 import { newPlayer, need } from './rules'
 
 test('phần trăm EXP của bậc hiện tại', () => {
@@ -27,4 +27,18 @@ test('dòng trạng thái không chứa số EXP thô hay số token', () => {
   expect(text.includes('1234')).toBe(false)
   expect(text.includes('9.999.999')).toBe(false)
   expect(text.includes('%')).toBe(true)
+})
+
+test('icon theo trạng thái: tu luyện 🌿, thiên phạt ⚡, đỉnh cảnh giới 👑', () => {
+  const base = newPlayer('Thể Tu', 'Nam')
+  expect(stateIcon(base)).toBe('🌿')
+  expect(stateIcon({ ...base, trib: { startedAt: 0, deadline: 1, required: 1, earned: 0 } })).toBe('⚡')
+  expect(stateIcon({ ...base, realm: 33 })).toBe('👑')
+})
+
+test('màu chữ đi theo màu thanh tiến độ, chưa ghi danh là subtle', () => {
+  const base = newPlayer('Thể Tu', 'Nam')
+  expect(toneOf(base, 0)).toBe('success')
+  expect(toneOf({ ...base, trib: { startedAt: 0, deadline: 30 * 60_000, required: 1, earned: 0 } }, 0)).toBe('error')
+  expect(toneOf(undefined, 0)).toBe('subtle')
 })

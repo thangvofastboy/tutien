@@ -18,6 +18,10 @@ declare module 'claude-code' {
       me: TutienPlayer | undefined
       effect: { kind: string; until: number } | null
       tick: number
+      settingsTick: number
+      wizard: { step: number; cls?: string; gender?: string; name?: string; persona?: string; display?: string; done?: boolean }
+      wizardError: string | null
+      typed: number
     }
   }
 }

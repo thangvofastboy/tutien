@@ -27,6 +27,15 @@ export function barColor(p: Player, now: number): 'jade' | 'gold' | 'danger' {
   return 'jade'
 }
 
+// Icon theo trạng thái: 👑 đỉnh cảnh giới, ⚡ đang thiên phạt, 🌿 đang tu luyện.
+export const stateIcon = (p: Player) => (p.realm >= 33 ? '👑' : p.trib ? '⚡' : '🌿')
+
+// Màu chữ theo trạng thái, cùng quy tắc với thanh tiến độ.
+export const toneOf = (p: Player | undefined, now: number) => {
+  if (!p) return 'subtle'
+  return ({ jade: 'success', gold: 'warning', danger: 'error' } as const)[barColor(p, now)]
+}
+
 export function statusText(p: Player, now: number): string {
   const name = REALM_NAMES[p.realm - 1]
   if (p.realm >= 33) return `${name} (cảnh giới tối đa)`
