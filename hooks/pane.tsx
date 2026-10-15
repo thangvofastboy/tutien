@@ -7,7 +7,7 @@ import { paneLine } from './persona'
 import { bandLines } from './band'
 import { realmColor, gradientRuns, meter, rankColor, EVENT_BANNERS } from './look'
 import { SETTINGS, PANEL_BG, THEMES, TEXT_SIZES, withDefaults } from './settings'
-import { STEPS, initWizard, advance, type Wizard } from './start'
+import { STEPS, STEP_STYLE, initWizard, advance, type Wizard } from './start'
 import { PROLOGUE, CLASS_ORIGINS, STARTER_QUESTS } from './story'
 import { CLASSES, GENDERS } from './rules'
 import { PERSONAS, personaById } from './persona'
@@ -43,12 +43,12 @@ async function look($: any) {
 }
 
 // Ảnh nhân vật đã đọc từ đĩa, theo đường dẫn file: pane vẽ lại mỗi 250 ms khi có hiệu ứng, không đọc lại file.
-// ponytail: bộ nhớ đệm không giới hạn thời gian; tối đa 8 ảnh, đủ cho vài lần đổi bậc hoặc lớp trong một phiên.
+// ponytail: bộ nhớ đệm không giới hạn thời gian; tối đa 32 ảnh (9 ảnh của /tutien start + vài ảnh bậc), đầy thì xóa hết.
 const artCache = new Map<string, string | null>()
 async function cachedRead(file: string, load: () => Promise<string | null>): Promise<string | null> {
   if (artCache.has(file)) return artCache.get(file)!
   const v = await load()
-  if (artCache.size >= 8) artCache.clear()
+  if (artCache.size >= 32) artCache.clear()
   artCache.set(file, v)
   return v
 }
@@ -426,12 +426,51 @@ export async function startWizard($: any): Promise<void> {
   })
 }
 
+// Thu nhỏ cells Raster đi một nửa mỗi chiều (lấy ô chẵn): ảnh thu nhỏ cho bước chọn lớp/giới trên terminal.
+// Mỗi ô là 12 byte (3 u32), chép nguyên byte nên không phụ thuộc thứ tự byte của máy.
+export function shrinkCells(b64: string, cols: number, rows: number): string {
+  const src = atob(b64)
+  const w = cols >> 1, h = rows >> 1
+  let out = ''
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = ((y * 2) * cols + x * 2) * 12
+      out += src.slice(i, i + 12)
+    }
+  }
+  return btoa(out)
+}
+
+// Ảnh minh họa cho bước chọn lớp và giới: PNG khung 1 qua Svg (desktop, điện thoại), cells thu nhỏ qua Raster (terminal).
+async function stepArt($: any, e: any, pairs: { key: string; label: string; cls: string; gender: string }[]) {
+  const { Box, Text, Svg, Raster } = $.ui.resolve(e)
+  const useSvg = e.surface !== 'terminal' && !!Svg
+  const arts = await Promise.all(pairs.map(async p => {
+    if (useSvg) {
+      const file = `${$.plugin.root}/assets/realms/${p.cls}/${p.gender}/01.png`
+      const b64 = await cachedRead(`png:${file}`, () => $.fs.read(file, { as: 'bytes' }).then((x: any) => x?.base64 ?? null, () => null))
+      return b64 ? <Svg key={`art-${p.key}`} alt={p.label} width={96} height={96} source={svgSprite(b64)} /> : null
+    }
+    if (!Raster) return null
+    const file = `${$.plugin.root}/assets/cells/${p.cls}/${p.gender}/01.b64`
+    const cells = await cachedRead(`thumb:${file}`, () => $.fs.read(file).then(
+      (x: any) => (x ? shrinkCells(String(x).trim(), CELL_COLS, CELL_ROWS) : null), () => null))
+    return cells ? <Raster key={`art-${p.key}`} columns={CELL_COLS / 2} rows={CELL_ROWS / 2} cells={cells} /> : null
+  }))
+  return (
+    <Box flexDirection="row" flexWrap="wrap" gap={2}>
+      {pairs.map((p, i) => <Box key={p.key} flexDirection="column">{arts[i]}<Text dimColor>{p.label}</Text></Box>)}
+    </Box>
+  )
+}
+
 export async function renderStart($: any, e: any) {
   const els = resolveUi($, e)
   const { Box, Text, Button, Input } = els
   const w = await read($, wizard)
   const err = await read($, wizardError)
   const step = STEPS[w.step]
+  const style = STEP_STYLE[step]
 
   function go(value: string | null) {
     void (async () => {
@@ -445,7 +484,7 @@ export async function renderStart($: any, e: any) {
     void update($, wizard, (x: Wizard) => ({ ...x, step: Math.max(0, x.step - 1) }))
   }
 
-  const header = <Text dimColor>🧭 Bước {w.step + 1}/{STEPS.length}</Text>
+  const header = <Text bold color={style.color}>{style.icon} Bước {w.step + 1}/{STEPS.length}</Text>
   const error = err ? <Text color="error">⚠️ {err}</Text> : null
   const backBtn = w.step > 0 ? <Button key="back" onPress={back}>Quay lại</Button> : null
 
@@ -467,7 +506,8 @@ export async function renderStart($: any, e: any) {
     return (
       <Box flexDirection="column">
         {header}
-        <Text bold color="suggestion">🎭 Chọn lớp nhân vật</Text>
+        <Text bold color={style.color}>Chọn lớp nhân vật</Text>
+        {await stepArt($, e, CLASSES.map(c => ({ key: c, label: c, cls: c, gender: 'Nam' })))}
         {CLASSES.map(c => <Text key={`o-${c}`} dimColor>{c}: {CLASS_ORIGINS[c]}</Text>)}
         {choice(els, { key: 'cls', label: 'Lớp', options: CLASSES.map(c => ({ value: c, label: c })), value: w.cls, onSelect: go })}
         {error}{backBtn}
@@ -478,7 +518,8 @@ export async function renderStart($: any, e: any) {
     return (
       <Box flexDirection="column">
         {header}
-        <Text bold color="suggestion">⚥ Chọn giới</Text>
+        <Text bold color={style.color}>Chọn giới</Text>
+        {w.cls ? await stepArt($, e, GENDERS.map(g => ({ key: g, label: g, cls: w.cls!, gender: g }))) : null}
         {choice(els, { key: 'gender', label: 'Giới', options: GENDERS.map(g => ({ value: g, label: g })), value: w.gender, onSelect: go })}
         {error}{backBtn}
       </Box>
@@ -488,7 +529,7 @@ export async function renderStart($: any, e: any) {
     return (
       <Box flexDirection="column">
         {header}
-        <Text bold color="suggestion">✍️ Đặt đạo hiệu</Text>
+        <Text bold color={style.color}>Đặt đạo hiệu</Text>
         {Input
           ? <Input key="name" label="Tên" placeholder="ví dụ ThangVo" value={w.name} onSubmit={(v: string) => go(v)} />
           : <Text>Gõ <Text bold>/tutien ten &lt;đạo hiệu&gt;</Text> vào ô chat để đặt tên (app điện thoại chưa có ô nhập trong pane).</Text>}
@@ -502,7 +543,7 @@ export async function renderStart($: any, e: any) {
     return (
       <Box flexDirection="column">
         {header}
-        <Text bold color="suggestion">💬 Chọn tính cách (giọng nói của nhân vật)</Text>
+        <Text bold color={style.color}>Chọn tính cách (giọng nói của nhân vật)</Text>
         {choice(els, { key: 'persona', label: 'Tính cách', options, value: w.persona, onSelect: go })}
         {error}{backBtn}
       </Box>
@@ -517,7 +558,7 @@ export async function renderStart($: any, e: any) {
     return (
       <Box flexDirection="column">
         {header}
-        <Text bold color="suggestion">🖼️ Chọn cách hiển thị nhân vật</Text>
+        <Text bold color={style.color}>Chọn cách hiển thị nhân vật</Text>
         {choice(els, { key: 'display', label: 'Hiển thị', options, value: w.display, onSelect: go })}
         {error}{backBtn}
       </Box>
@@ -538,7 +579,7 @@ export async function renderStart($: any, e: any) {
   return (
     <Box flexDirection="column">
       {header}
-      <Text bold color={finished ? 'success' : 'suggestion'}>{finished ? '✅ Đã ghi danh! Hành trình bắt đầu.' : '📋 Xác nhận nhân vật'}</Text>
+      <Text bold color={finished ? 'success' : style.color}>{finished ? '✅ Đã ghi danh! Hành trình bắt đầu.' : 'Xác nhận nhân vật'}</Text>
       <Text>Đạo hiệu: {w.name} · Lớp: {w.cls} · Giới: {w.gender}</Text>
       <Text dimColor>Tính cách: {w.persona === 'none' ? 'Không' : w.persona} · Hiển thị: {w.display}</Text>
       {finished

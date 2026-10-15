@@ -35,3 +35,9 @@ test('giá trị không hợp lệ: giữ nguyên bước và báo lỗi', () =>
   expect(STEPS[badName.w.step]).toBe('name')
   expect(badName.error!.length).toBeGreaterThan(0)
 })
+
+import { STEP_STYLE } from './start'
+
+test('mỗi bước có icon và màu', () => {
+  for (const s of STEPS) expect(STEP_STYLE[s].icon && STEP_STYLE[s].color).toBeTruthy()
+})

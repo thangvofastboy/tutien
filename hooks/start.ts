@@ -3,6 +3,16 @@ import { CLASSES, GENDERS } from './rules'
 import { PERSONAS } from './persona'
 
 export const STEPS = ['story', 'class', 'gender', 'name', 'persona', 'display', 'confirm'] as const
+// Icon và màu từng bước của /tutien start; màu là tên token của Claude Code (không phụ thuộc theme).
+export const STEP_STYLE: Record<(typeof STEPS)[number], { icon: string; color: string }> = {
+  story: { icon: '📜', color: 'remember' },
+  class: { icon: '🎭', color: 'suggestion' },
+  gender: { icon: '⚥', color: 'success' },
+  name: { icon: '✍️', color: 'warning' },
+  persona: { icon: '💬', color: 'remember' },
+  display: { icon: '🖼️', color: 'suggestion' },
+  confirm: { icon: '📋', color: 'success' },
+}
 export type Wizard = { step: number; cls?: string; gender?: string; name?: string; persona?: string; display?: string; done?: boolean }
 
 const NAME = /^[\p{L}\p{N}_-]{1,24}$/u
