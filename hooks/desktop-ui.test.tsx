@@ -46,7 +46,7 @@ test('Claude Code Desktop: cỡ chữ Lớn và theme Kim Đan đổi chữ tron
   await set.press({ key: 'tutien.theme:kim-dan' })
   await set.unmount()
   const ui = await $.ui.mount({ plugin: 'tutien', surface: 'desktop', component: 'Pane', requestId: 'tu-tien', props: { title: 'Tu tiên', bodyColumns: 80 } } as any)
-  const title = await ui.find({ type: 'Text', text: /Bảng Tu Vi/ })
+  const title = await ui.find({ type: 'Text', text: /☯ Tu Luyện/ })
   expect(title?.props.size).toBe('title')
   expect(title?.props.color).toBe('#e3b341')
   expect((await ui.find({ type: 'Text', text: /Tiến độ bậc/ }))?.props.size).toBe('heading')
@@ -58,4 +58,38 @@ test('svgSprite nhúng PNG và giữ nét pixel', () => {
   const s = svgSprite('QUJD')
   expect(s).toContain('data:image/png;base64,QUJD')
   expect(s).toContain('image-rendering:pixelated')
+})
+
+test('pane nhân vật có hàng nút lệnh nhanh, bấm nút không lỗi', async ($, on) => {
+  await withPlayer($, on)
+  const ui = await $.ui.mount({ plugin: 'tutien', surface: 'desktop', component: 'Pane', requestId: 'tu-tien', props: { title: 'Tu tiên', bodyColumns: 80 } } as any)
+  expect(await ui.find({ type: 'Button', key: 'quick:status' })).toBeDefined()
+  expect(await ui.find({ type: 'Button', key: 'quick:top' })).toBeDefined()
+  await ui.press({ key: 'quick:status' })
+  await ui.unmount()
+})
+
+test('thanh trên ô nhập: một dòng có thanh tiến độ, và vẫn vẽ phần của plugin bên dưới', async ($, on) => {
+  on('ui.render', { component: 'AbovePrompt' }, async ($: any, e: any) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>thanh của plugin khác</Text>
+  })
+  await withPlayer($, on)
+  const ui = await $.ui.mount({ plugin: 'tutien', surface: 'terminal', component: 'AbovePrompt', requestId: 'band', props: { bodyColumns: 100 } } as any)
+  expect(await ui.find({ type: 'Text', text: /ThangVo · Kiếm Tu/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /█|·/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /thanh của plugin khác/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('chế độ gọn: pane ẩn thẻ nhiệm vụ và bảng xếp hạng, vẫn giữ thẻ tu luyện', async ($, on) => {
+  await withPlayer($, on)
+  const set = await $.ui.mount({ plugin: 'tutien', surface: 'mobile', component: 'Pane', requestId: 'tu-tien-settings', props: { title: 'Cài đặt', bodyColumns: 80 } } as any)
+  await set.press({ key: 'tutien.compact:on' })
+  await set.unmount()
+  const ui = await $.ui.mount({ plugin: 'tutien', surface: 'desktop', component: 'Pane', requestId: 'tu-tien', props: { title: 'Tu tiên', bodyColumns: 80 } } as any)
+  expect(await ui.find({ type: 'Text', text: /☯ Tu Luyện/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Bảng Tu Vi/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Nhiệm Vụ/ })).toBeUndefined()
+  await ui.unmount()
 })

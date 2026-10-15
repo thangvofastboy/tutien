@@ -8,7 +8,7 @@ const onOff = [{ value: 'on', label: 'Bật' }, { value: 'off', label: 'Tắt' }
 export const SETTINGS: Setting[] = [
   { key: 'tutien.display', label: 'Cách vẽ nhân vật', default: 'raster',
     options: [{ value: 'raster', label: 'Ô màu (mọi terminal)' }, { value: 'image', label: 'Ảnh (kitty, WezTerm)' }, { value: 'text', label: 'Chỉ chữ' }] },
-  { key: 'tutien.statusline', label: 'Dòng trạng thái dưới ô nhập', default: 'on', options: onOff },
+  { key: 'tutien.statusline', label: 'Dòng trạng thái dưới ô nhập (có dấu ⚠)', default: 'off', options: onOff },
   { key: 'tutien.band', label: 'Khung nhỏ phía trên ô nhập', default: 'on', options: onOff },
   { key: 'tutien.claudePersona', label: 'Claude nói theo tính cách nhân vật', default: 'off', options: onOff },
   { key: 'tutien.chatlines', label: 'Lời chào và thông báo trong khung chat', default: 'on', options: onOff },
@@ -19,6 +19,7 @@ export const SETTINGS: Setting[] = [
     options: [{ value: 'mac-dinh', label: 'Mặc định' }, { value: 'kim-dan', label: 'Kim Đan' }, { value: 'bang-tam', label: 'Băng Tâm' }, { value: 'huyet-sat', label: 'Huyết Sát' }, { value: 'thanh-moc', label: 'Thanh Mộc' }, { value: 'tu-vi', label: 'Tử Vi' }] },
   { key: 'tutien.textsize', label: 'Cỡ chữ trong panel (Desktop, web, điện thoại)', default: 'vua',
     options: [{ value: 'nho', label: 'Nhỏ' }, { value: 'vua', label: 'Vừa' }, { value: 'lon', label: 'Lớn' }] },
+  { key: 'tutien.compact', label: 'Chế độ gọn (ẩn nhiệm vụ và bảng xếp hạng trong panel)', default: 'off', options: onOff },
   { key: 'tutien.autoupdate', label: 'Tự cập nhật khi mở Claude Code', default: 'off', options: onOff },
   { key: 'tutien.persona', label: 'Tính cách nhân vật', default: 'none',
     options: [{ value: 'none', label: 'Không' }, ...PERSONAS.map(p => ({ value: p.id, label: p.name }))] },

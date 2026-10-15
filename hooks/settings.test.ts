@@ -22,7 +22,7 @@ test('điền mặc định cho mục chưa đặt và bỏ giá trị không h�
   const v = withDefaults({ 'tutien.display': 'image', 'tutien.band': 'xyz' })
   expect(v['tutien.display']).toBe('image')
   expect(v['tutien.band']).toBe('on')
-  expect(v['tutien.statusline']).toBe('on')
+  expect(v['tutien.statusline']).toBe('off')
 })
 
 test('màu nền panel: mặc định theo terminal (không tô), các màu khác là mã hex', () => {

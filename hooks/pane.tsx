@@ -1,10 +1,11 @@
 import { atom, read, update } from 'claude-code'
 import { callServer, SERVER } from './api'
-import { statusText, percentExp, stateIcon, toneOf } from './display'
+import { statusText, percentExp, stateIcon, toneOf, timeLeft } from './display'
 import { REALM_NAMES, type Player } from './rules'
 import { tribEffect, overlayFrame, effectActive } from './effects'
 import { paneLine } from './persona'
-import { bandLines, classIcon } from './band'
+import { bandLines } from './band'
+import { realmColor, gradientRuns, meter, rankColor, EVENT_BANNERS } from './look'
 import { SETTINGS, PANEL_BG, THEMES, TEXT_SIZES, withDefaults } from './settings'
 import { STEPS, initWizard, advance, type Wizard } from './start'
 import { PROLOGUE, CLASS_ORIGINS, STARTER_QUESTS } from './story'
@@ -91,24 +92,55 @@ export async function setPlayer($: any, player: Player): Promise<void> {
 // Dòng trạng thái dưới ô nhập (luôn hiện): tên, cảnh giới, tiến độ hoặc thời gian thiên phạt.
 export async function showStatus($: any, player: Player | undefined): Promise<void> {
   const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
-  if (!player || !name || (await setting($, 'tutien.statusline')) === 'off') return $.ui.status(undefined)
+  if (!player || !name || (await setting($, 'tutien.statusline')) !== 'on') return $.ui.status(undefined)
   const [top, bottom] = bandLines(name, player, Date.now())
   $.ui.status(`${stateIcon(player)} ${top} · ${bottom}`)
 }
 
-// Khung chữ nhỏ căn phải phía trên ô nhập (dải AbovePrompt).
+// Khung phía trên ô nhập (dải AbovePrompt), kiểu khung của terminal-polish: viền bo tròn màu theo trạng thái,
+// tiêu đề tô dải màu tiên khí rồi các ô thông tin trên một hàng. Vẽ cả phần của plugin bên dưới (next) để không che mod khác.
 export async function renderBand($: any, e: any, next: any) {
-  if ((await setting($, 'tutien.band')) === 'off') return next(e)
+  let below: any = null
+  try { below = await next(e) } catch { /* không có gì bên dưới (môi trường test) */ }
+  if ((await setting($, 'tutien.band')) === 'off') return below
   const { Box, Text } = $.ui.resolve(e)
   const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
   const p = await read($, me)
-  const [top, bottom] = bandLines(name || 'Tu tiên', p, Date.now())
+  const inf = await read($, info)
+  const fx = await read($, effect)
+  const now = Date.now()
+  const { th } = await look($)
+  const tone = toneOf(p, now)
+  const seg = (key: string, text: string, color?: string, bold?: boolean) => <Text key={key} color={color} bold={bold}>{text}</Text>
+  const dot = (key: string) => <Text key={key} dimColor>│</Text>
+  const parts: any[] = []
+  if (!p) {
+    parts.push(seg('reg', 'Chưa ghi danh · /tutien start', tone))
+  } else {
+    const rc = realmColor(p.realm)
+    parts.push(seg('who', `${stateIcon(p)} ${name || 'Tu tiên'} · ${p.cls}`, th.quote))
+    parts.push(dot('d1'), seg('realm', `✦ ${REALM_NAMES[p.realm - 1]}`, rc, true))
+    if (p.trib) {
+      parts.push(dot('d2'), seg('trib', `⚡ Thiên phạt ${Math.floor((p.trib.earned / p.trib.required) * 100)}% · còn ${timeLeft(now, p.trib.deadline)}`, 'warning', true))
+    } else {
+      const pct = percentExp(p)
+      const m = meter(pct)
+      parts.push(dot('d2'), seg('bar', m.filled, rc), seg('rest', m.rest, 'subtle'), seg('pct', ` ${pct}%`, rc, true))
+    }
+    if (inf) parts.push(dot('d3'), seg('quest', `📅 ${inf.quest}%`, '#4fc3f7'))
+    if (inf?.tamma !== null && inf?.tamma !== undefined) parts.push(dot('d4'), seg('tamma', `👹 ${inf.tamma}%`, '#ea80fc'))
+  }
+  const banner = effectActive(fx, now) ? EVENT_BANNERS[fx!.kind] : undefined
   return (
-    <Box flexDirection="row" justifyContent="flex-end">
-      <Box flexDirection="column" borderStyle="round" paddingX={1}>
-        <Text bold color="suggestion">{classIcon(p?.cls ?? '')} {top}</Text>
-        <Text color={toneOf(p, Date.now())}>{p ? stateIcon(p) : '✦'} {bottom}</Text>
+    <Box flexDirection="column" width={e.props.bodyColumns}>
+      <Box flexDirection="column" borderStyle="round" borderColor={p ? realmColor(p.realm) : tone} paddingX={1}>
+        <Box flexDirection="row" flexWrap="wrap" gap={1}>
+          <Box flexDirection="row">{gradientRuns('◆ Tu Tiên').map((r, i) => <Text key={`t${i}`} bold color={r.color}>{r.ch}</Text>)}</Box>
+          {parts}
+        </Box>
+        {banner ? <Text bold color={banner.color}>{banner.text}</Text> : null}
       </Box>
+      {below}
     </Box>
   )
 }
@@ -130,11 +162,11 @@ export async function refreshPane($: any): Promise<void> {
 }
 
 // Các dòng bảng xếp hạng: 5 người đầu, thêm hàng của mình nếu ở ngoài.
-export function boardLines(rows: BoardRow[], me: string): { text: string; mine: boolean }[] {
+export function boardLines(rows: BoardRow[], me: string): { text: string; mine: boolean; rank: number }[] {
   const mine = (r: BoardRow) => r.name.toLowerCase() === me.toLowerCase()
   const medal = (n: number) => (n === 1 ? '🥇' : n === 2 ? '🥈' : n === 3 ? '🥉' : `${n}.`)
   const show = [...rows.filter(r => r.rank <= 5), ...rows.filter(r => r.rank > 5 && mine(r))]
-  return show.map(r => ({ text: `${medal(r.rank)} ${r.name} · ${REALM_NAMES[r.realm - 1] ?? ''} · ${r.score}%`, mine: mine(r) }))
+  return show.map(r => ({ text: `${medal(r.rank)} ${r.name} · ${REALM_NAMES[r.realm - 1] ?? ''} · ${r.score}%`, mine: mine(r), rank: r.rank }))
 }
 
 export const PANE_ID = PANE
@@ -148,8 +180,20 @@ export const realmCells = (root: string, p: Player) =>
 export const displayMode = (v: unknown): 'image' | 'raster' | 'text' =>
   v === 'image' || v === 'text' ? v : 'raster'
 
+// Nút lệnh nhanh: bấm là chạy đúng lệnh như gõ /tutien <lệnh>, kết quả hiện trong khung chat.
+const QUICK = [
+  { arg: 'status', label: '📈 Trạng thái' },
+  { arg: 'top', label: '🏆 Bảng xếp hạng' },
+  { arg: 'history', label: '📊 Lịch sử' },
+  { arg: 'team', label: '👥 Team' },
+  { arg: 'setting', label: '⚙️ Cài đặt' },
+]
+function runQuick($: any, arg: string) {
+  void $.command.run({ command: 'tutien', args: arg }).catch(() => undefined)
+}
+
 export async function renderPane($: any, e: any) {
-  const { Box, Text, Image, Raster, Svg } = $.ui.resolve(e)
+  const { Box, Text, Image, Raster, Svg, Button } = $.ui.resolve(e)
   const p = await read($, me)
   if (!p) return <Text dimColor>🌱 Chưa ghi danh. Dùng /tutien register.</Text>
 
@@ -184,20 +228,53 @@ export async function renderPane($: any, e: any) {
   await read($, settingsTick) // đổi cài đặt thì vẽ lại ngay
   const bg = PANEL_BG[(await setting($, 'tutien.panelbg')) ?? 'terminal']
   const { th, sz } = await look($)
+  const compact = (await setting($, 'tutien.compact')) === 'on'
   const inf = await read($, info)
   const lines = boardLines(await read($, board), ((await $.store.get('tutien.name')) as string | undefined) ?? '')
+  const now = Date.now()
+  const rc = realmColor(p.realm)
+  const pct = percentExp(p)
+  const m = meter(pct, 16)
+  const banner = active ? EVENT_BANNERS[active] : undefined
+  // Thẻ: khung bo tròn có tiêu đề, màu viền theo theme.
+  const card = (key: string, title: string, color: string, body: any[]) => (
+    <Box key={key} flexDirection="column" borderStyle="round" borderColor={color} paddingX={1}>
+      <Text size={sz.title} bold color={color}>{title}</Text>
+      {body}
+    </Box>
+  )
+  const quest: any[] = []
+  if (inf) quest.push(<Text key="q" size={sz.body} color="#4fc3f7">📅 Nhiệm vụ ngày: {inf.quest}%{inf.tong ? ` · 🏯 ${inf.tong}` : ''}</Text>)
+  if (inf?.bicanh) quest.push(<Text key="bc" size={sz.body} color="#80cbc4">🌀 {inf.bicanh}</Text>)
+  if (inf?.tamma !== null && inf?.tamma !== undefined) quest.push(<Text key="tm" size={sz.body} color="#ea80fc">👹 Xua đuổi Tâm Ma: {inf.tamma}%</Text>)
   return (
-    <Box flexDirection="column" backgroundColor={bg}>
+    <Box flexDirection="column" backgroundColor={bg} gap={1}>
       {overlay}
-      {art}
-      <Text size={sz.title} color={toneOf(p, Date.now())}>{stateIcon(p)} {statusText(p, Date.now())}</Text>
-      <Text size={sz.body} italic color={th.quote}>💬 {line}</Text>
-      <Text size={sz.body} dimColor>📈 Tiến độ bậc: {percentExp(p)}%</Text>
-      {inf ? <Text size={sz.body} dimColor>📅 Nhiệm vụ ngày: {inf.quest}%{inf.tong ? ` · 🏯 ${inf.tong}` : ''}</Text> : null}
-      {inf?.bicanh ? <Text size={sz.body} dimColor>🌀 {inf.bicanh}</Text> : null}
-      {inf?.tamma !== null && inf?.tamma !== undefined ? <Text size={sz.body} color="error">👹 Xua đuổi Tâm Ma: {inf.tamma}%</Text> : null}
-      {lines.length ? <Text size={sz.title} bold color={th.title}>🏆 Bảng Tu Vi</Text> : null}
-      {lines.map(l => <Text key={`b-${l.text}`} size={sz.body} color={l.mine ? th.mine : undefined} bold={l.mine}>{l.text}</Text>)}
+      {banner ? <Text size={sz.title} bold color={banner.color}>{banner.text}</Text> : null}
+      <Box flexDirection="column" alignItems="center" borderStyle="round" borderColor={rc} paddingX={1}>
+        <Text size={sz.title} bold color={rc}>✦ {REALM_NAMES[p.realm - 1]} ✦</Text>
+        {art}
+        <Text size={sz.body} color={th.quote}>{p.cls} · {p.gender}</Text>
+      </Box>
+      {card('tu', '☯ Tu Luyện', th.title, [
+        <Text key="st" size={sz.body} color={toneOf(p, now)}>{stateIcon(p)} {statusText(p, now)}</Text>,
+        <Text key="ln" size={sz.body} italic color={th.quote}>💬 {line}</Text>,
+        <Box key="mt" flexDirection="row">
+          <Text size={sz.body} dimColor>📈 Tiến độ bậc: </Text>
+          <Text size={sz.body} color={rc}>{m.filled}</Text>
+          <Text size={sz.body} color="subtle">{m.rest}</Text>
+          <Text size={sz.body} bold color={rc}> {pct}%</Text>
+        </Box>,
+      ])}
+      {!compact && quest.length ? card('nv', '📜 Nhiệm Vụ', '#4fc3f7', quest) : null}
+      {!compact && lines.length ? card('bxh', '🏆 Bảng Tu Vi', '#ffd54f', lines.map(l => (
+        <Text key={`b-${l.text}`} size={sz.body} color={l.mine ? th.mine : rankColor(l.rank)} bold={l.mine || l.rank <= 3}>{l.text}</Text>
+      ))) : null}
+      {Button ? (
+        <Box flexDirection="row" flexWrap="wrap" gap={1}>
+          {QUICK.map(q => <Button key={`quick:${q.arg}`} onPress={() => runQuick($, q.arg)}>{q.label}</Button>)}
+        </Box>
+      ) : null}
     </Box>
   )
 }
