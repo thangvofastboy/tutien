@@ -494,7 +494,7 @@ export async function renderStart($: any, e: any) {
     return (
       <Box flexDirection="column">
         {header}
-        <Text>{PROLOGUE.slice(0, n)}</Text>
+        <Text color="remember">{PROLOGUE.slice(0, n)}</Text>
         <Box flexDirection="row">
           {!done ? <Button key="skip" onPress={() => void update($, typed, () => PROLOGUE.length)}>Hiện hết</Button> : null}
           <Button key="next" onPress={() => go(null)}>Tiếp</Button>
@@ -580,7 +580,7 @@ export async function renderStart($: any, e: any) {
     <Box flexDirection="column">
       {header}
       <Text bold color={finished ? 'success' : style.color}>{finished ? '✅ Đã ghi danh! Hành trình bắt đầu.' : 'Xác nhận nhân vật'}</Text>
-      <Text>Đạo hiệu: {w.name} · Lớp: {w.cls} · Giới: {w.gender}</Text>
+      <Text>Đạo hiệu: <Text bold color="suggestion">{w.name}</Text> · Lớp: <Text color="success">{w.cls}</Text> · Giới: {w.gender}</Text>
       <Text dimColor>Tính cách: {w.persona === 'none' ? 'Không' : w.persona} · Hiển thị: {w.display}</Text>
       {finished
         ? STARTER_QUESTS.map(q => <Text key={q.title} color="warning">📌 {q.title}</Text>)
