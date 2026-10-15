@@ -22,7 +22,7 @@ export const SETTINGS: Setting[] = [
   { key: 'tutien.compact', label: 'Chế độ gọn (ẩn nhiệm vụ và bảng xếp hạng trong panel)', default: 'off', options: onOff },
   { key: 'tutien.autoupdate', label: 'Tự cập nhật khi mở Claude Code', default: 'off', options: onOff },
   { key: 'tutien.persona', label: 'Tính cách nhân vật', default: 'none',
-    options: [{ value: 'none', label: 'Không' }, ...PERSONAS.map(p => ({ value: p.id, label: p.name }))] },
+    options: [{ value: 'none', label: 'Không' }, ...PERSONAS.map(p => ({ value: p.id, label: p.name })), { value: 'tuy-chinh', label: 'Tùy chỉnh (đặt bằng /tutien persona tuy-chinh)' }] },
 ]
 
 // Màu nền thật của panel theo lựa chọn; 'terminal' là không tô, nên nền là nền terminal đang dùng.

@@ -10,7 +10,7 @@ import { SETTINGS, PANEL_BG, THEMES, TEXT_SIZES, withDefaults } from './settings
 import { STEPS, initWizard, advance, type Wizard } from './start'
 import { PROLOGUE, CLASS_ORIGINS, STARTER_QUESTS } from './story'
 import { CLASSES, GENDERS } from './rules'
-import { PERSONAS } from './persona'
+import { PERSONAS, personaById } from './persona'
 import { webRunning, writeWebState } from './web'
 import { greetingLines, eventLines } from './chat'
 
@@ -35,20 +35,38 @@ async function setting($: any, key: string): Promise<string | undefined> {
 
 // Theme và cỡ chữ đang chọn; giá trị lạ thì về mặc định.
 async function look($: any) {
+  const [theme, size] = await Promise.all([setting($, 'tutien.theme'), setting($, 'tutien.textsize')])
   return {
-    th: THEMES[(await setting($, 'tutien.theme')) ?? ''] ?? THEMES['mac-dinh'],
-    sz: TEXT_SIZES[(await setting($, 'tutien.textsize')) ?? ''] ?? TEXT_SIZES.vua,
+    th: THEMES[theme ?? ''] ?? THEMES['mac-dinh'],
+    sz: TEXT_SIZES[size ?? ''] ?? TEXT_SIZES.vua,
   }
 }
 
+// Ảnh nhân vật đã đọc từ đĩa, theo đường dẫn file: pane vẽ lại mỗi 250 ms khi có hiệu ứng, không đọc lại file.
+// ponytail: bộ nhớ đệm không giới hạn thời gian; tối đa 8 ảnh, đủ cho vài lần đổi bậc hoặc lớp trong một phiên.
+const artCache = new Map<string, string | null>()
+async function cachedRead(file: string, load: () => Promise<string | null>): Promise<string | null> {
+  if (artCache.has(file)) return artCache.get(file)!
+  const v = await load()
+  if (artCache.size >= 8) artCache.clear()
+  artCache.set(file, v)
+  return v
+}
+
 // Bật hiệu ứng thiên phạt rồi tự tắt sau đúng thời lượng (spec 14). Khung hình đổi mỗi 250 ms.
+// Chỉ một bộ đếm khung hình chạy một lúc; hiệu ứng mới thay hiệu ứng cũ.
+let fxTimer: { cancel: () => void } | null = null
 export async function showEffect($: any, kind: string, ms: number): Promise<void> {
   if ((await setting($, 'tutien.effects')) === 'off') return
-  await update($, effect, () => ({ kind, until: Date.now() + ms }))
+  const until = Date.now() + ms
+  await update($, effect, () => ({ kind, until }))
+  fxTimer?.cancel()
   const timer = $.clock.every(250, () => void update($, tick, (t: number) => t + 1))
+  fxTimer = timer
   $.clock.after(ms, () => {
-    timer.cancel()
-    void update($, effect, () => null) // tắt hiệu ứng và vẽ lại pane
+    if (fxTimer === timer) { timer.cancel(); fxTimer = null }
+    // Chỉ tắt nếu vẫn là hiệu ứng của lần gọi này (hiệu ứng sau không bị tắt sớm).
+    void update($, effect, (cur: { kind: string; until: number } | null) => (cur && cur.until === until ? null : cur))
   })
 }
 
@@ -100,6 +118,7 @@ export async function showStatus($: any, player: Player | undefined): Promise<vo
 // Khung phía trên ô nhập (dải AbovePrompt), kiểu khung của terminal-polish: viền bo tròn màu theo trạng thái,
 // tiêu đề tô dải màu tiên khí rồi các ô thông tin trên một hàng. Vẽ cả phần của plugin bên dưới (next) để không che mod khác.
 export async function renderBand($: any, e: any, next: any) {
+  await read($, settingsTick) // đổi cài đặt (tắt khung, đổi theme) thì vẽ lại ngay
   let below: any = null
   try { below = await next(e) } catch { /* không có gì bên dưới (môi trường test) */ }
   if ((await setting($, 'tutien.band')) === 'off') return below
@@ -146,13 +165,16 @@ export async function renderBand($: any, e: any, next: any) {
 }
 
 export async function refreshPane($: any): Promise<void> {
-  const res = await callServer<{ player: Player; status?: any; social?: any }>($, '/me').catch(() => undefined)
+  const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
+  // Hai yêu cầu độc lập: gửi song song.
+  const [res, top] = await Promise.all([
+    callServer<{ player: Player; status?: any; social?: any }>($, '/me').catch(() => undefined),
+    $.http.fetch(`${SERVER}/leaderboard?board=tu-vi&me=${encodeURIComponent(name)}`, { method: 'GET' }).catch(() => null),
+  ])
   if (res?.ok && res.data?.status) {
     const s = res.data.status
     await update($, info, () => ({ quest: s.quest?.pct ?? 0, bicanh: s.bicanh ?? null, tamma: s.tamma?.pct ?? null, tong: res.data!.social?.tong?.name ?? null }))
   }
-  const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
-  const top = await $.http.fetch(`${SERVER}/leaderboard?board=tu-vi&me=${encodeURIComponent(name)}`, { method: 'GET' }).catch(() => null)
   if (top?.ok) {
     let rows: BoardRow[] = []
     try { rows = (JSON.parse(top.text) as { rows?: BoardRow[] }).rows ?? [] } catch { /* bảng lỗi: giữ trống */ }
@@ -203,32 +225,38 @@ export async function renderPane($: any, e: any) {
     ? <Text>{overlayFrame(fx.kind as any, await read($, tick))}</Text>
     : null
   const active = effectActive(fx, Date.now()) ? fx!.kind : null
+  await read($, settingsTick) // đổi cài đặt thì vẽ lại ngay
+  // Đọc mọi cài đặt một lượt, song song.
+  const [persona, personaLines, display, panelbg, compactSetting, { th, sz }] = await Promise.all([
+    $.store.get('tutien.persona'), $.store.get('tutien.personaLines'), $.store.get('tutien.display'),
+    setting($, 'tutien.panelbg'), setting($, 'tutien.compact'), look($),
+  ])
   const line = paneLine(
     { realm: p.realm, tribActive: !!p.trib, died: active === 'red', tribFailed: active === 'rain', breakthrough: active === 'gold' },
-    ((await $.store.get('tutien.persona')) as string | null) ?? null,
-    ((await $.store.get('tutien.personaLines')) as string[] | null) ?? null,
+    (persona as string | null) ?? null,
+    (personaLines as string[] | null) ?? null,
     Math.floor(Date.now() / 60_000),
   )
-  const mode = displayMode(await $.store.get('tutien.display'))
+  const mode = displayMode(display)
   let art: any = <Text>{alt}</Text>
   if (mode !== 'text' && e.surface !== 'terminal' && Svg) {
     // Claude Code Desktop và app điện thoại không vẽ Raster/Image (chỉ là fragment rỗng): vẽ ảnh PNG qua Svg.
-    const png = await $.fs.read(realmImage($.plugin.root, p), { as: 'bytes' }).catch(() => null)
-    if (png?.base64) art = <Svg key="realm" alt={alt} width={192} height={192} source={svgSprite(png.base64)} />
+    const file = realmImage($.plugin.root, p)
+    const b64 = await cachedRead(`png:${file}`, () => $.fs.read(file, { as: 'bytes' }).then((x: any) => x?.base64 ?? null, () => null))
+    if (b64) art = <Svg key="realm" alt={alt} width={192} height={192} source={svgSprite(b64)} />
   } else if (mode === 'image' && Image) {
     const file = realmImage($.plugin.root, p)
-    if (await $.fs.stat(file).then(() => true, () => false)) {
+    if (await cachedRead(`stat:${file}`, () => $.fs.stat(file).then(() => 'ok', () => null))) {
       art = <Image key="realm" source={{ file, format: 'png' }} columns={24} rows={12} alt={alt} />
     }
   } else if (mode === 'raster' && Raster) {
-    const cells = await $.fs.read(realmCells($.plugin.root, p)).catch(() => null)
-    if (cells) art = <Raster key="realm" columns={CELL_COLS} rows={CELL_ROWS} cells={String(cells).trim()} />
+    const file = realmCells($.plugin.root, p)
+    const cells = await cachedRead(`cells:${file}`, () => $.fs.read(file).then((x: any) => (x ? String(x).trim() : null), () => null))
+    if (cells) art = <Raster key="realm" columns={CELL_COLS} rows={CELL_ROWS} cells={cells} />
   }
 
-  await read($, settingsTick) // đổi cài đặt thì vẽ lại ngay
-  const bg = PANEL_BG[(await setting($, 'tutien.panelbg')) ?? 'terminal']
-  const { th, sz } = await look($)
-  const compact = (await setting($, 'tutien.compact')) === 'on'
+  const bg = PANEL_BG[panelbg ?? 'terminal']
+  const compact = compactSetting === 'on'
   const inf = await read($, info)
   const lines = boardLines(await read($, board), ((await $.store.get('tutien.name')) as string | undefined) ?? '')
   const now = Date.now()
@@ -309,7 +337,8 @@ export async function renderSettings($: any, e: any) {
   const { Box, Text } = els
   await read($, settingsTick) // đăng ký vẽ lại khi có thay đổi
   const stored: Record<string, unknown> = {}
-  for (const s of SETTINGS) stored[s.key] = await $.store.get(s.key)
+  const got = await Promise.all(SETTINGS.map(s => $.store.get(s.key)))
+  SETTINGS.forEach((s, i) => { stored[s.key] = got[i] })
   const values = withDefaults(stored)
   const { th, sz } = await look($)
   return (
@@ -322,6 +351,16 @@ export async function renderSettings($: any, e: any) {
           value: values[s.key],
           onSelect: (v: string) => {
             void (async () => {
+              if (s.key === 'tutien.persona') {
+                // Tùy chỉnh cần bộ thoại do /tutien persona tuy-chinh tạo; chưa có thì chỉ hướng dẫn.
+                if (v === 'tuy-chinh' && !((await $.store.get('tutien.personaLines')) as string[] | null)?.length) {
+                  $.ui.toast('Gõ /tutien persona tuy-chinh <mô tả> để tạo tính cách tùy chỉnh.')
+                  return
+                }
+                if (v !== 'tuy-chinh') await $.store.set('tutien.personaLines', null)
+                // Server lưu chuỗi; chuỗi rỗng là không có tính cách. Tùy chỉnh chỉ lưu trên máy này.
+                if (v !== 'tuy-chinh') await callServer($, '/profile', { persona: personaById(v)?.name ?? '' }).catch(() => null)
+              }
               await $.store.set(s.key, v)
               await update($, settingsTick, (n: number) => n + 1)
               if (s.key === 'tutien.statusline' || s.key === 'tutien.band') {

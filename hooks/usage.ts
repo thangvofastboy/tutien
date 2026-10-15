@@ -1,9 +1,20 @@
 // hooks/usage.ts — gửi số token mỗi lượt lên server (spec 3). Hàng đợi lưu trong $.store.
 import { callServer, countTokens } from './api'
 import { pushQueue, flushQueue, canQueue, type Item } from './queue'
-import { applyEvents, setPlayer } from './pane'
+import { applyEvents, setPlayer, refreshPane } from './pane'
 
 const QUEUE = 'tutien.queue'
+const REFRESH_MS = 60_000 // làm mới nhiệm vụ ngày, Tâm Ma, bảng xếp hạng tối đa mỗi phút một lần
+
+// Mọi thao tác trên hàng đợi chạy nối tiếp: subagent song song bắn turn.complete cùng lúc,
+// đọc-sửa-ghi hàng đợi chồng nhau thì mất lượt.
+let chain: Promise<unknown> = Promise.resolve()
+function serial<T>(job: () => Promise<T>): Promise<T> {
+  const run = chain.then(job, job)
+  chain = run.catch(() => undefined)
+  return run
+}
+let lastRefresh = 0
 
 async function flush($: any): Promise<void> {
   const q = ((await $.store.get(QUEUE)) as Item[] | undefined) ?? []
@@ -25,14 +36,22 @@ async function flush($: any): Promise<void> {
   }
 }
 
-// Ghi lượt vào hàng đợi rồi gửi ngay (gọi từ turn.complete trong register.ts).
-export async function recordTurn($: any, turnId: string, usage: unknown): Promise<void> {
+// Ghi lượt vào hàng đợi rồi gửi (gọi nền từ turn.complete trong register.ts, không chặn lượt).
+export function recordTurn($: any, turnId: string, usage: unknown, now = Date.now()): Promise<void> {
   const tokens = countTokens(usage as any)
-  if (tokens <= 0 || !turnId) return
-  if (!canQueue(await $.store.get('tutien.key'))) return
-  const q = ((await $.store.get(QUEUE)) as Item[] | undefined) ?? []
-  await $.store.set(QUEUE, pushQueue(q, { turnId, tokens }))
-  await flush($)
+  if (tokens <= 0 || !turnId) return Promise.resolve()
+  return serial(async () => {
+    if (!canQueue(await $.store.get('tutien.key'))) return
+    const q = ((await $.store.get(QUEUE)) as Item[] | undefined) ?? []
+    await $.store.set(QUEUE, pushQueue(q, { turnId, tokens }))
+    await flush($)
+    if (now - lastRefresh >= REFRESH_MS) {
+      lastRefresh = now
+      await refreshPane($)
+    }
+  })
 }
 
-export { flush as flushUsage }
+export function flushUsage($: any): Promise<void> {
+  return serial(() => flush($))
+}

@@ -114,19 +114,26 @@ export function sumTranscript(text: string, day: string, seen: Set<string>): num
 export async function reconcile($: any, now = Date.now()): Promise<void> {
   const day = vnDay(now - DAY)
   if ((await $.store.get('tutien.reconciled')) === day) return
-  const h = await home($)
-  if (!h) return
-  const root = `${h}/.claude/projects`
-  const seen = new Set<string>()
-  let total = 0
-  const walk = async (dir: string, depth: number): Promise<void> => {
-    for (const e of await $.fs.list(dir).catch(() => [])) {
-      const p = `${dir}/${e.name}`
-      if (e.kind === 'directory' && depth < 3) await walk(p, depth + 1)
-      else if (e.name.endsWith('.jsonl') && e.mtimeMs > now - 3 * DAY) total += sumTranscript(String(await $.fs.read(p).catch(() => '')), day, seen)
+  // Đã tính cho ngày này mà gửi lỗi: chỉ gửi lại con số, không đọc lại transcript.
+  const cached = (await $.store.get('tutien.reconcileTotal')) as { day: string; total: number } | undefined
+  let total = cached?.day === day ? cached.total : -1
+  if (total < 0) {
+    const h = await home($)
+    if (!h) return
+    const root = `${h}/.claude/projects`
+    const seen = new Set<string>()
+    const since = Date.parse(`${day}T00:00:00+07:00`) // file sửa trước đầu ngày cần tính thì không có lượt của ngày đó
+    total = 0
+    const walk = async (dir: string, depth: number): Promise<void> => {
+      for (const e of await $.fs.list(dir).catch(() => [])) {
+        const p = `${dir}/${e.name}`
+        if (e.kind === 'directory' && depth < 3) await walk(p, depth + 1)
+        else if (e.name.endsWith('.jsonl') && e.mtimeMs >= since) total += sumTranscript(String(await $.fs.read(p).catch(() => '')), day, seen)
+      }
     }
+    await walk(root, 0)
+    await $.store.set('tutien.reconcileTotal', { day, total })
   }
-  await walk(root, 0)
   const r = await callServer($, '/reconcile', { day, tokens: total })
   if (r.ok) await $.store.set('tutien.reconciled', day)
 }

@@ -41,3 +41,8 @@ test('theme và cỡ chữ: mặc định là Mặc định và Vừa, mỗi l�
   for (const o of SETTINGS.find(s => s.key === 'tutien.textsize')!.options) expect(TEXT_SIZES[o.value]).toBeDefined()
   expect(isValidSetting('tutien.textsize', 'khong-lo')).toBe(false)
 })
+
+test('tính cách tùy chỉnh là lựa chọn hợp lệ, Cài đặt không hiện thành "Không"', () => {
+  expect(isValidSetting('tutien.persona', 'tuy-chinh')).toBe(true)
+  expect(withDefaults({ 'tutien.persona': 'tuy-chinh' })['tutien.persona']).toBe('tuy-chinh')
+})

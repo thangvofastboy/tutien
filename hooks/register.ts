@@ -46,8 +46,9 @@ export const register: Register = on => {
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
-    await recordTurn($, e.turnId, e.usage)
-    await breakReminder($)
+    // Chạy nền: lượt kết thúc ngay, không chờ server (turn.complete bắn cả cho từng lượt subagent).
+    void recordTurn($, e.turnId, e.usage).catch(() => null)
+    void breakReminder($).catch(() => null)
     return result
   })
 
@@ -70,12 +71,16 @@ export const register: Register = on => {
     }
     await $.store.set('tutien.version', version)
     await loadAccount($)
-    if ((await $.store.get('tutien.autoupdate')) === 'on') await runUpdate($)
-    await flushUsage($)
-    await refreshPane($)
-    await logGreeting($)
-    await sessionNotes($)
-    void reconcile($).catch(() => null) // chạy nền, không chặn mở phiên
+    // Phần còn lại cần mạng (cập nhật, gửi hàng đợi, hộp thư): chạy nền để mở phiên không phải chờ,
+    // và mất mạng thì không làm hỏng session.start.
+    void (async () => {
+      if ((await $.store.get('tutien.autoupdate')) === 'on') await runUpdate($).catch(() => null)
+      await flushUsage($).catch(() => null)
+      await refreshPane($).catch(() => null)
+      await logGreeting($).catch(() => null)
+      await sessionNotes($).catch(() => null)
+      await reconcile($).catch(() => null)
+    })()
 
     return next(e)
   })
