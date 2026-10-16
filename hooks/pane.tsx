@@ -14,6 +14,7 @@ import { PERSONAS, personaById } from './persona'
 import { webRunning, writeWebState } from './web'
 import { greetingLines, eventLines } from './chat'
 import { lineColor } from './features'
+import { fxSvg, kyNgoScene, KY_NGO_ASCII, type FxKind } from './art'
 import { runTutien } from './register'
 
 const PANE = 'tu-tien'
@@ -27,14 +28,16 @@ const board = atom({ plugin: 'tutien', key: 'board' } as const, [] as BoardRow[]
 type Info = {
   quest: number; bicanh: string | null; tamma: number | null; tong: string | null
   streak?: number; linhCan?: { name: string; icon: string } | null; cpPoints?: number
-  kyNgo?: { title: string; desc: string; a: string; b: string } | null
+  kyNgo?: { id: string; title: string; desc: string; a: string; b: string } | null
 }
 const info = atom({ plugin: 'tutien', key: 'info' } as const, null as Info | null)
 // Kết quả nút lệnh nhanh: hiện ngay trong panel (không chỉ trong khung chat).
-const quickOut = atom({ plugin: 'tutien', key: 'quickOut' } as const, null as { title: string; text: string; card?: string } | null)
+type Action = { label: string; arg: string }
+type Out = { title: string; text: string; card?: string; actions?: Action[] }
+const quickOut = atom({ plugin: 'tutien', key: 'quickOut' } as const, null as Out | null)
 // Hiện kết quả trong thẻ của panel và pane Cài đặt; `card` là SVG (thẻ khoe nhân vật).
-export async function showOut($: any, title: string, text: string, card?: string): Promise<void> {
-  await update($, quickOut, () => ({ title, text, card }))
+export async function showOut($: any, title: string, text: string, card?: string, actions?: Action[]): Promise<void> {
+  await update($, quickOut, () => ({ title, text, card, actions }))
 }
 const settingsTick = atom({ plugin: 'tutien', key: 'settingsTick' } as const, 0)
 const wizard = atom({ plugin: 'tutien', key: 'wizard' } as const, { step: 0 } as Wizard)
@@ -205,7 +208,7 @@ export async function refreshPane($: any): Promise<void> {
     await update($, info, () => ({
       quest: s.quest?.pct ?? 0, bicanh: s.bicanh ?? null, tamma: s.tamma?.pct ?? null, tong: res.data!.social?.tong?.name ?? null,
       streak: s.streak ?? 0, linhCan: s.linhCan ? { name: s.linhCan.name, icon: s.linhCan.icon } : null, cpPoints: s.congPhap?.points ?? 0,
-      kyNgo: s.kyNgo ? { title: s.kyNgo.title, desc: s.kyNgo.desc, a: s.kyNgo.a, b: s.kyNgo.b } : null,
+      kyNgo: s.kyNgo ? { id: s.kyNgo.id, title: s.kyNgo.title, desc: s.kyNgo.desc, a: s.kyNgo.a, b: s.kyNgo.b } : null,
     }))
   }
   if (top?.ok) {
@@ -256,21 +259,32 @@ function runQuick($: any, arg: string, label?: string) {
     if (opens) return // mở pane khác
     const text = String(r?.text ?? '').trim() || 'Không có dữ liệu.'
     // Lệnh đã tự hiện thẻ (kèm ảnh) thì giữ nguyên.
-    await update($, quickOut, (cur: any) => (cur?.card && cur.text === text ? cur : { title, text }))
+    await update($, quickOut, (cur: any) => ((cur?.card || cur?.actions) && cur.text === text ? cur : { title, text }))
   })()
 }
 
 // Thẻ kết quả: mỗi dòng tô màu theo icon đầu dòng, có ảnh nếu là thẻ khoe.
-function outCard(els: any, $: any, out: { title: string; text: string; card?: string }, size?: string) {
+function outCard(els: any, $: any, out: Out, size?: string) {
   const { Box, Text, Button, Svg } = els
   return (
     <Box key="out" flexDirection="column" borderStyle="round" borderColor="#79c0ff" paddingX={1}>
       <Text size={size} bold color="#79c0ff">{out.title}</Text>
       {out.card && Svg ? <Svg key="card" alt={out.title} width={360} height={192} source={out.card} /> : null}
       {out.text.split('\n').map((t, i) => <Text key={`o-${i}`} size={size} color={lineColor(t)}>{t || ' '}</Text>)}
-      {Button ? <Button key="out-close" onPress={() => void update($, quickOut, () => null)}>✖ Đóng</Button> : null}
+      {Button ? (
+        <Box key="out-btns" flexDirection="row" flexWrap="wrap" gap={1}>
+          {(out.actions ?? []).map(a => <Button key={`act:${a.arg}`} onPress={() => runQuick($, a.arg, out.title)}>{a.label}</Button>)}
+          <Button key="out-close" onPress={() => void update($, quickOut, () => null)}>✖ Đóng</Button>
+        </Box>
+      ) : null}
     </Box>
   )
+}
+
+// Hiệu ứng nào có khung SVG: các hiệu ứng mới, và thiên phạt cũ mượn khung gần giống.
+const FX_SVG_OF: Record<string, FxKind | undefined> = {
+  kyngo: 'kyngo', sparkle: 'sparkle', fire: 'fire', meteor: 'meteor', scroll: 'scroll', ult: 'ult', win: 'win', lose: 'lose', treasure: 'treasure', badge: 'badge',
+  gold: 'ult', lightning: 'meteor', rain: 'lose',
 }
 
 export async function renderPane($: any, e: any) {
@@ -280,8 +294,16 @@ export async function renderPane($: any, e: any) {
 
   const alt = `${REALM_NAMES[p.realm - 1]} (${p.cls}, ${p.gender})`
   const fx = await read($, effect)
+  const t = await read($, tick)
+  // Terminal: một dòng chữ chạy theo nhịp. Desktop, web, điện thoại: thêm khung hoạt ảnh SVG (hạt bay, sao băng, lửa).
+  const fxArt = fx && e.surface !== 'terminal' && Svg ? FX_SVG_OF[fx.kind] : undefined
   const overlay = effectActive(fx, Date.now()) && fx
-    ? <Text>{overlayFrame(fx.kind as any, await read($, tick))}</Text>
+    ? (
+      <Box key="fx" flexDirection="column" alignItems="center">
+        {fxArt ? <Svg key={`fx-${t % 12}`} alt={fx.kind} width={360} height={180} source={fxSvg(fxArt, t)} /> : null}
+        <Text>{overlayFrame(fx.kind as any, t)}</Text>
+      </Box>
+    )
     : null
   const active = effectActive(fx, Date.now()) ? fx!.kind : null
   await read($, settingsTick) // đổi cài đặt thì vẽ lại ngay
@@ -372,6 +394,9 @@ export async function renderPane($: any, e: any) {
       ))) : null}
       {inf?.kyNgo ? card('kn', '🎲 Kỳ Ngộ', '#56d4dd', [
         <Text key="kt" size={sz.body} bold color="#56d4dd">{inf.kyNgo.title}</Text>,
+        e.surface !== 'terminal' && Svg
+          ? <Svg key="ks" alt={inf.kyNgo.title} width={360} height={180} source={kyNgoScene(inf.kyNgo.id)} />
+          : <Box key="ka" flexDirection="column">{(KY_NGO_ASCII[inf.kyNgo.id] ?? []).map((l, i) => <Text key={`ka-${i}`} color="#56d4dd">{l}</Text>)}</Box>,
         <Text key="kd" size={sz.body} italic>{inf.kyNgo.desc}</Text>,
         Button ? (
           <Box key="kb" flexDirection="row" flexWrap="wrap" gap={1}>

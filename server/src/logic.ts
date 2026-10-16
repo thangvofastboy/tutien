@@ -7,7 +7,8 @@ import {
   QUEST_TOKENS, PILLS, BADGES, giftStep, type Extras,
 } from './extras.ts'
 import { vnDay, holidayOn, holidayTarget } from '../../hooks/holidays.ts'
-import { featureExtra, streakStep, maybeKyNgo, congPhapOf, kyNgoView, duelCount, LINH_CAN, CONG_PHAP, type Features } from './features.ts'
+import { featureExtra, streakStep, maybeKyNgo, congPhapOf, kyNgoView, duelCount, treeView, LINH_CAN, type Features } from './features.ts'
+import { cpEffects } from './congphap.ts'
 
 export const SEEN_LIMIT = 1000
 export const MAX_TOKENS_PER_TURN = 5_000_000
@@ -221,7 +222,7 @@ export type Row = {
   name: string; cls: string; gender: string; realm: number; exp: number; pct: number; lifetimeTokens: number; week: number; deaths: number; artifacts: number; flagged?: boolean
   // Mở rộng (spec 18, 20, 25): tuần lịch, tháng, tháp, hoạt động gần nhất, hồ sơ công khai.
   wk?: number; lwk?: number; mo?: number; lmo?: number; floor?: number; floorAt?: number; lastAt?: number; lastBreakthroughAt?: number
-  badges?: string[]; persona?: string; equipped?: string; linhCan?: string; trib?: { pctTrib: number; deadline: number }
+  badges?: string[]; persona?: string; equipped?: string; linhCan?: string; duel?: number; trib?: { pctTrib: number; deadline: number }
 }
 
 // Trạng thái đã xử lý thiên phạt quá hạn tại thời điểm đọc (GET /me, bảng xếp hạng).
@@ -251,6 +252,7 @@ export function row(st0: State, now: number): Row {
     persona: st.persona,
     equipped: st.equipped,
     linhCan: st.linhCan,
+    duel: cpEffects(st).duel,
     trib: st.player.trib ? { pctTrib: Math.min(100, Math.floor((st.player.trib.earned / st.player.trib.required) * 100)), deadline: st.player.trib.deadline } : undefined,
   }
 }
@@ -360,7 +362,7 @@ export function statusOf(st: State, now: number) {
     devices: 1 + (st.devices?.length ?? 0),
     linhCan: st.linhCan ? { id: st.linhCan, ...LINH_CAN[st.linhCan], bonus: undefined } : null,
     kyNgo: kyNgoView(st, now),
-    congPhap: (() => { const cp = congPhapOf(st); return { points: cp.points, learned: Object.entries(cp.learned).map(([id, n]) => ({ id, n, name: CONG_PHAP[id]?.name ?? id, icon: CONG_PHAP[id]?.icon ?? '📖' })) } })(),
+    congPhap: treeView(st),
     luanDao: duelCount(st, now),
   }
 }

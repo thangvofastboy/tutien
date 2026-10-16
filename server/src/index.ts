@@ -207,7 +207,7 @@ export default {
       const foe = rows.find(r => r.name.toLowerCase() === String(body?.target ?? '').toLowerCase())
       if (!me || !foe || foe.flagged) return json({ error: `Không tìm thấy đạo hữu "${body?.target ?? ''}".` }, 404)
       if (foe.name.toLowerCase() === name.toLowerCase()) return json({ error: '🪞 Tự đánh với bóng mình trong gương? Thắng cũng không vẻ vang gì.' }, 400)
-      const fighter = (r: Row) => ({ name: r.name, realm: r.realm, artifacts: r.artifacts, linhCan: r.linhCan })
+      const fighter = (r: Row) => ({ name: r.name, realm: r.realm, artifacts: r.artifacts, linhCan: r.linhCan, duel: r.duel })
       const res = await stub.fetch('https://do/duel', post({ a: fighter(me), b: fighter(foe) }))
       const out = (await res.json()) as { win?: boolean; log?: string[]; error?: string }
       if (!res.ok) return json(out, res.status)

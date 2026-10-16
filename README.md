@@ -169,12 +169,28 @@ Thỉnh thoảng sau một lượt chat, Tâm Ma hiện ra: 2% lúc bình thư�
 - 🎲 **Kỳ ngộ**: sau mỗi lượt có ~3% gặp chuyện lạ (tối đa 3 lần mỗi ngày): tiền bối hỏi cách thoát Vim, ảo cảnh merge conflict, yêu thú bug production… Chọn 🅰️ hoặc 🅱️ ngay trong panel. Có thể được EXP, linh thạch, pháp bảo, đan dược, hoặc mất chút linh thạch. Kỳ ngộ tan sau 24 giờ.
 - ⚔️ **Luận đạo**: thách đấu đạo hữu khác. Sức mạnh theo bậc, pháp bảo, may mắn, và ngũ hành tương khắc. Thắng +5 linh thạch, thua không mất gì; người bị thách thua thì được 2 linh thạch phí chỉ giáo.
 - 🔥 **Chuỗi ngày**: 3 ngày +5 linh thạch, 7 ngày +1 pháp bảo, 14 ngày +20 linh thạch, 30 ngày +1 pháp bảo hiếm, 100 ngày huy hiệu Đạo Tâm Bất Diệt. Đứt chuỗi thì các mốc mở lại.
-- 📖 **Công pháp**: mỗi lần đột phá được 1 điểm (người chơi cũ nhận sẵn điểm theo bậc). 5 công pháp, mỗi cái 3 tầng. Tẩy tủy hoàn điểm, tốn 20 linh thạch.
+- 📖 **Công pháp**: mỗi lớp một môn phái, một cây riêng: 4 công pháp 3 tầng và 1 **tuyệt kỹ** (mở khi đã tu 6 tầng). Mỗi lần đột phá được 1 điểm (người chơi cũ nhận sẵn điểm theo bậc). Bấm nút "Học" ngay trong panel. Đổi lớp thì công pháp lớp cũ được hoàn điểm. Tẩy tủy hoàn điểm, tốn 20 linh thạch.
+
+  | Lớp | Môn phái | Tuyệt kỹ | Thế mạnh |
+  |---|---|---|---|
+  | 🗡️ Kiếm Tu | Thục Sơn Kiếm Phái | 🌌 Vạn Kiếm Quy Tông | EXP, luận đạo |
+  | ⚗️ Đan Sư | Dược Vương Cốc | 🟡 Cửu Chuyển Kim Đan | thiên phạt nhẹ, linh thạch |
+  | 🔯 Trận Pháp Sư | Thiên Cơ Các | ✨ Chu Thiên Tinh Đấu Đại Trận | phòng thủ, thiên phạt |
+  | 🔨 Luyện Khí Sư | Thần Binh Các | 🗡️ Thần Binh Xuất Thế | linh thạch, luận đạo |
+  | 📜 Phù Tu | Long Hổ Sơn | 🌠 Vạn Phù Triều Tông | kỳ ngộ |
+  | 💪 Thể Tu | Kim Cang Tự | 🌟 Bất Diệt Kim Thân | ít tử vong, chịu thiên phạt |
+  | 😈 Ma Tu | Huyết Ma Giáo | 💀 Thiên Ma Giải Thể | EXP cao nhất |
 - 🏯 **Tông chiến**: tông có từ 2 người thi tổng token tuần. Tông thắng tuần trước giữ ⛲ Linh Mạch: cả tông +0,5% EXP.
 - ☄️ **Thiên Kiếp Đồng Tâm**: cả team đạt mốc token tuần (3 triệu mỗi người, ít nhất 10 triệu) thì ai cũng +1% EXP đến hết tuần.
 - 🧑‍🏫 **Sư đồ**: bái sư người từ bậc 7, cao hơn mình 3 bậc. Đồ đệ +0,5% EXP; mỗi lần đồ đệ đột phá, sư phụ +5 linh thạch. Mỗi sư phụ tối đa 3 đồ đệ.
 - 🪪 **Thẻ khoe**: `/tutien the` in một thẻ SVG có ảnh, cảnh giới, linh căn, chuỗi ngày; hiện luôn trong panel.
 - 📜 **Truyện tuần**: Claude (Haiku) viết một đoạn truyện hài về tuần tu luyện của đạo hữu, theo tính cách nhân vật. Mỗi tuần lưu một bản; `/tutien truyen-tuan moi` để viết lại.
+
+### 🎨 Hình ảnh và hiệu ứng
+
+Desktop, web và điện thoại vẽ hình SVG có hoạt ảnh: mỗi kỳ ngộ một cảnh, cảnh luận đạo hai bên đối đầu, cuộn công pháp của môn phái. Mỗi sự kiện (kỳ ngộ, chuỗi ngày, lĩnh ngộ công pháp, tuyệt kỹ, luận đạo thắng thua, Thiên Kiếp Đồng Tâm, pháp bảo, huy hiệu) có băng rôn và khung hạt bay chạy theo nhịp. Terminal hiện tranh chữ và dòng hiệu ứng chạy chữ. Tắt hết bằng "Hiệu ứng" trong `/tutien setting`.
+
+![Hình minh họa kỳ ngộ, luận đạo, công pháp](docs/img/art-preview.png)
 
 ## 🔗 Dùng trên nhiều máy
 

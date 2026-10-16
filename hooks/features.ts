@@ -2,6 +2,7 @@
 import { callServer, SERVER } from './api'
 import { REALM_NAMES, type Player } from './rules'
 import { realmColor } from './look'
+import { kyNgoScene, duelScene, scrollScene } from './art'
 
 type Res = { ok: boolean; status: number; data?: any; error?: string; upgrade?: boolean }
 const fail = (r: Res) =>
@@ -102,23 +103,28 @@ export function streakLines(n: number): string[] {
   ]
 }
 
-export const CONG_PHAP_LIST: { id: string; name: string; icon: string; desc: string }[] = [
-  { id: 'kiem-y', name: 'Kiếm Ý Tâm Pháp', icon: '⚔️', desc: '+0,3% EXP mỗi tầng' },
-  { id: 'van-kiep', name: 'Vạn Kiếp Bất Diệt Thể', icon: '🛡️', desc: '−1% token thiên phạt mỗi tầng' },
-  { id: 'kim-cang', name: 'Kim Cang Hộ Mệnh', icon: '💎', desc: '−0,03% tỷ lệ tử vong mỗi tầng' },
-  { id: 'thien-co', name: 'Thiên Cơ Thuật', icon: '🔮', desc: '+1% cơ hội kỳ ngộ mỗi tầng' },
-  { id: 'tu-bao', name: 'Tụ Bảo Quyết', icon: '💰', desc: '+2 linh thạch mỗi kỳ ngộ, trận thắng' },
-]
-export function congPhapLines(cp: { points: number; learned: { id: string; n: number }[] }): string[] {
-  const have = (id: string) => cp.learned.find(l => l.id === id)?.n ?? 0
-  return [
-    `📖 Tàng Kinh Các · điểm công pháp: ${cp.points} ${cp.points ? '✨' : '(đột phá để nhận thêm)'}`,
-    '',
-    ...CONG_PHAP_LIST.map(c => `   ${c.icon} ${c.name} ${'★'.repeat(have(c.id))}${'☆'.repeat(3 - have(c.id))} · ${c.desc}\n      → /tutien cong-phap hoc ${c.id}`),
-    '',
-    '🧪 Tẩy tủy (học lại từ đầu, hoàn điểm): /tutien cong-phap tay-tuy · 20 linh thạch',
-  ]
+export type Tree = {
+  school: string; icon: string; color: string; points: number; spent: number; ultNeeds: number
+  skills: { id: string; name: string; icon: string; flavor: string; desc: string; max: number; ult: boolean; n: number }[]
 }
+export function congPhapLines(t: Tree): string[] {
+  const out = [`📖 ${t.icon} ${t.school} · Tàng Kinh Các`, `✨ Điểm công pháp: ${t.points}${t.points ? '' : ' (đột phá để nhận thêm)'} · đã tu ${t.spent} tầng`, '']
+  for (const s of t.skills) {
+    const stars = `${'★'.repeat(s.n)}${'☆'.repeat(s.max - s.n)}`
+    const locked = s.ult && t.spent < t.ultNeeds && s.n === 0
+    out.push(`${s.ult ? '🌟 TUYỆT KỸ ' : '   '}${s.icon} ${s.name} ${stars}${locked ? ` 🔒 cần ${t.ultNeeds} tầng` : ''}`)
+    out.push(`      ${s.desc}`, `      💬 "${s.flavor}"`)
+    if (s.n < s.max && !locked) out.push(`      → /tutien cong-phap hoc ${s.id}`)
+  }
+  out.push('', '🧪 Tẩy tủy (học lại từ đầu, hoàn điểm): /tutien cong-phap tay-tuy · 20 linh thạch')
+  return out
+}
+// Nút học cho các công pháp còn học được.
+export const congPhapActions = (t: Tree) => t.points < 1 ? [] : t.skills
+  .filter(s => s.n < s.max && (!s.ult || t.spent >= t.ultNeeds))
+  .map(s => ({ label: `${s.icon} Học ${s.name}`, arg: `cong-phap hoc ${s.id}` }))
+
+export const CLASS_ICONS: Record<string, string> = { 'Kiếm Tu': '🗡️', 'Đan Sư': '⚗️', 'Trận Pháp Sư': '🔯', 'Luyện Khí Sư': '🔨', 'Phù Tu': '📜', 'Thể Tu': '💪', 'Ma Tu': '😈' }
 
 export function warLines(t: any): string[] {
   const out = ['🏯 Tông Chiến Tuần Này', '']
@@ -184,19 +190,22 @@ const weekId = (now: number) => {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - dow)).toISOString().slice(0, 10)
 }
 
+export type Out = { text: string; title?: string; card?: string; actions?: { label: string; arg: string }[]; player?: Player; events?: string[] }
 // Trả về chữ cho lệnh tính năng mới, hoặc null nếu không phải. `card` là SVG khi lệnh tạo thẻ;
 // `player` và `events` để register.ts cập nhật panel (kỳ ngộ).
-export async function runFeatures($: any, sub: string, rest: string[], tail: string): Promise<{ text: string; card?: string; player?: Player; events?: string[] } | null> {
+export async function runFeatures($: any, sub: string, rest: string[], tail: string): Promise<Out | null> {
   const arg = (i: number) => (rest[i] ?? '').trim()
   const status = () => callServer<{ player: Player; status: any; social: any }>($, '/status')
   switch (sub) {
     case 'ky-ngo': case 'kyngo': {
       if (arg(0)) {
         const r = await callServer<{ text: string; events: string[]; player: Player }>($, '/ky-ngo', { choice: arg(0).toLowerCase() })
-        return { text: say(r), player: r.data?.player, events: (r.data?.events ?? []).filter(e => e !== 'ky-ngo-done') }
+        return { text: say(r), player: r.data?.player, events: r.data?.events ?? [] }
       }
       const r = await status()
-      return { text: r.ok ? kyNgoLines(r.data?.status?.kyNgo).join('\n') : fail(r) }
+      const k = r.data?.status?.kyNgo
+      if (!r.ok || !k) return { text: r.ok ? kyNgoLines(null).join('\n') : fail(r) }
+      return { text: kyNgoLines(k).join('\n'), title: k.title, card: kyNgoScene(k.id), actions: [{ label: `🅰️ ${k.a}`, arg: 'ky-ngo a' }, { label: `🅱️ ${k.b}`, arg: 'ky-ngo b' }] }
     }
     case 'linh-can': case 'linhcan': {
       const counts = ((await $.store.get('tutien.linhCanCounts')) as Partial<Record<Element, number>> | undefined) ?? {}
@@ -209,17 +218,38 @@ export async function runFeatures($: any, sub: string, rest: string[], tail: str
         const l = r.data?.status?.luanDao
         return { text: ['⚔️ Luận Đạo: /tutien luan-dao <tên đạo hữu>', '   Thắng +5 linh thạch, thua không mất gì (chỉ mất chút sĩ diện). Mỗi ngày 3 trận.', l ? `   📊 Hôm nay ${l.n}/3 trận · tổng thắng ${l.wins} · thua ${l.losses}` : ''].filter(Boolean).join('\n') }
       }
-      return { text: say(await callServer($, '/luan-dao', { target: tail })) }
+      const r = await callServer<{ text: string; win: boolean }>($, '/luan-dao', { target: tail })
+      if (!r.ok || !r.data) return { text: fail(r) }
+      const me = await status()
+      const foe = await $.http.fetch(`${SERVER}/find?name=${encodeURIComponent(tail)}`, { method: 'GET' }).then((x: any) => (x.ok ? JSON.parse(x.text) : null), () => null)
+      const name = ((await $.store.get('tutien.name')) as string) ?? ''
+      return {
+        text: r.data.text, title: '⚔️ Luận Đạo',
+        card: duelScene(name, foe?.name ?? tail, CLASS_ICONS[me.data?.player?.cls ?? ''] ?? '🧘', CLASS_ICONS[foe?.cls] ?? '🧘', r.data.win),
+        events: [r.data.win ? 'luan-dao-win' : 'luan-dao-lose'],
+      }
     }
     case 'chuoi': case 'streak': {
       const r = await status()
       return { text: r.ok ? streakLines(r.data?.status?.streak ?? 0).join('\n') : fail(r) }
     }
     case 'cong-phap': case 'congphap': {
-      if (arg(0) === 'hoc') return { text: arg(1) ? say(await callServer($, '/cong-phap', { action: 'hoc', id: arg(1) })) : 'Dùng: /tutien cong-phap hoc <id>' }
+      if (arg(0) === 'hoc') {
+        if (!arg(1)) return { text: 'Dùng: /tutien cong-phap hoc <id>' }
+        const r = await callServer($, '/cong-phap', { action: 'hoc', id: arg(1) })
+        const text = say(r)
+        const events = r.ok ? [text.includes('TUYỆT KỸ') ? 'cong-phap-ult' : 'cong-phap'] : []
+        // Học xong thì hiện lại cả cây kèm nút, để bấm học tiếp.
+        const after = r.ok ? await status() : null
+        const t: Tree | undefined = after?.data?.status?.congPhap
+        if (!t?.skills) return { text, events }
+        return { text: `${text}\n\n${congPhapLines(t).join('\n')}`, title: `📖 ${t.school}`, card: scrollScene(t.school, t.icon, t.color, t.skills), actions: congPhapActions(t), events }
+      }
       if (arg(0) === 'tay-tuy') return { text: say(await callServer($, '/cong-phap', { action: 'tay-tuy' })) }
       const r = await status()
-      return { text: r.ok && r.data?.status?.congPhap ? congPhapLines(r.data.status.congPhap).join('\n') : fail(r) }
+      const t: Tree | undefined = r.data?.status?.congPhap
+      if (!r.ok || !t?.skills) return { text: fail(r) }
+      return { text: congPhapLines(t).join('\n'), title: `📖 ${t.school}`, card: scrollScene(t.school, t.icon, t.color, t.skills), actions: congPhapActions(t) }
     }
     case 'tong-chien': case 'tongchien': {
       const res = await $.http.fetch(`${SERVER}/team`, { method: 'GET' }).catch(() => null)

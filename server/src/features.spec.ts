@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { register, handleUsage, type State } from './logic.ts'
-import { maybeKyNgo, resolveKyNgo, kyNgoView, learn, resetCongPhap, featureExtra, streakStep, duel, KY_NGO, KY_NGO_PER_DAY, RESET_COST } from './features.ts'
+import { maybeKyNgo, resolveKyNgo, kyNgoView, learn, resetCongPhap, featureExtra, streakStep, duel, congPhapOf, treeView, KY_NGO, KY_NGO_PER_DAY, RESET_COST } from './features.ts'
+import { cpEffects, TREES } from './congphap.ts'
 import { tongWar, teamWeek, baiSu, nhanDo, suDoHuy, ctxFor, emptySocial, tongCreate, tongJoin, type Snap } from './social.ts'
 import { vnDay } from '../../hooks/holidays.ts'
 
@@ -36,19 +37,41 @@ test('kỳ ngộ: Mộc Linh Căn nhân linh thạch 1,5', () => {
   assert.equal(r.state!.linhThach, 12)
 })
 
-test('công pháp: học tốn điểm, có trần, tẩy tủy hoàn điểm và tốn linh thạch', () => {
-  const st = { ...fresh(), player: { ...fresh().player, realm: 3 } } // 2 điểm
-  const a = learn(st, 'kiem-y')
-  assert.deepEqual(a.congPhap, { points: 1, learned: { 'kiem-y': 1 } })
-  const b = learn({ ...st, congPhap: a.congPhap }, 'kiem-y')
+test('công pháp: mỗi lớp một cây riêng, học tốn điểm, có trần, tẩy tủy hoàn điểm', () => {
+  const st = { ...fresh(), player: { ...fresh().player, realm: 3 } } // Kiếm Tu, 2 điểm
+  const a = learn(st, 'nhat-kiem')
+  assert.deepEqual(a.congPhap, { points: 1, learned: { 'nhat-kiem': 1 } })
+  assert.match(a.text!, /Nhất Kiếm Phá Bug/)
+  assert.ok(learn(st, 'huyet-ma').error) // công pháp của Ma Tu
+  const b = learn({ ...st, congPhap: a.congPhap }, 'nhat-kiem')
   assert.equal(b.congPhap!.points, 0)
-  assert.ok(learn({ ...st, congPhap: b.congPhap }, 'van-kiep').error)
-  assert.ok(learn(st, 'khong-co').error)
-  assert.equal(featureExtra({ congPhap: b.congPhap }).pillExp, 0.006)
+  assert.ok(learn({ ...st, congPhap: b.congPhap }, 'kiem-tam').error) // hết điểm
+  assert.equal(featureExtra({ ...st, congPhap: b.congPhap }).pillExp, 0.006)
   assert.ok(resetCongPhap({ ...st, congPhap: b.congPhap, linhThach: 0 }).error)
   const r = resetCongPhap({ ...st, congPhap: b.congPhap, linhThach: RESET_COST + 1 })
   assert.deepEqual(r.congPhap, { points: 2, learned: {} })
   assert.equal(r.linhThach, 1)
+})
+
+test('công pháp: tuyệt kỹ cần đủ 6 tầng; đổi lớp thì hoàn điểm công pháp lớp cũ', () => {
+  const st = { ...fresh(), congPhap: { points: 5, learned: { 'nhat-kiem': 3, 'kiem-tam': 2 } } }
+  assert.match(learn(st, 'van-kiem').error!, /6 tầng/)
+  const six = learn(st, 'kiem-tam').congPhap!
+  const ult = learn({ ...st, congPhap: six }, 'van-kiem')
+  assert.match(ult.text!, /TUYỆT KỸ/)
+  const ma = { ...st, player: { ...st.player, cls: 'Ma Tu' } }
+  assert.deepEqual(congPhapOf(ma), { points: 10, learned: {} })
+  assert.equal(treeView(ma).school, 'Huyết Ma Giáo')
+  assert.equal(treeView(ma).skills.length, 5)
+  assert.ok(cpEffects({ ...st, congPhap: { points: 0, learned: { 'kiem-tam': 2 } } }).duel === 8)
+})
+
+test('công pháp: lớp nào cũng có 4 công pháp thường và 1 tuyệt kỹ', () => {
+  for (const [cls, t] of Object.entries(TREES)) {
+    const sk = Object.values(t.skills)
+    assert.equal(sk.length, 5, cls)
+    assert.equal(sk.filter(s => s.ult).length, 1, cls)
+  }
 })
 
 test('công pháp: đột phá cho thêm một điểm', () => {

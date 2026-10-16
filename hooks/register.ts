@@ -214,8 +214,8 @@ export async function runTutien($: any, args: string): Promise<{ text: string }>
         if (f) {
           if (f.player) await setPlayer($, f.player)
           if (f.events?.length) await applyEvents($, f.events)
-          if (f.card) await showOut($, '🪪 Thẻ Tu Tiên', f.text, f.card)
-          if (sub.startsWith('ky') || sub.startsWith('cong')) void refreshPane($).catch(() => null)
+          if (f.card || f.actions) await showOut($, f.title ?? '🪪 Thẻ Tu Tiên', f.text, f.card, f.actions)
+          if (sub.startsWith('ky') || sub.startsWith('cong') || sub.startsWith('luan')) void refreshPane($).catch(() => null)
           return { text: f.text }
         }
         return { text: (await runMore($, sub, rest, tail)) ?? `${HELP}\n\nMở rộng:\n${MORE_HELP}\n\nCơ duyên và đồng môn:\n${FEATURE_HELP}` }

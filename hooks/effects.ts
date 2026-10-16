@@ -13,9 +13,21 @@ export function typeStep(full: string, shownCount: number, reduced: boolean): { 
 // Hào quang: khung 1, 2, 3 lặp lại (400 ms mỗi khung ở pane).
 export const auraFrame = (tick: number) => (tick % 3) + 1
 
-// Hiệu ứng thiên phạt theo sự kiện của server (spec 14).
-export function tribEffect(event: string): { kind: 'lightning' | 'gold' | 'rain' | 'red' | 'tamma'; ms: number } | null {
+export type FxName = 'lightning' | 'gold' | 'rain' | 'red' | 'tamma' | 'kyngo' | 'sparkle' | 'fire' | 'meteor' | 'scroll' | 'ult' | 'win' | 'lose' | 'treasure' | 'badge'
+
+// Hiệu ứng theo sự kiện của server (spec 14) và của các tính năng mới (kỳ ngộ, chuỗi ngày, công pháp, luận đạo).
+export function tribEffect(event: string): { kind: FxName; ms: number } | null {
+  if (event.startsWith('streak:')) return { kind: 'fire', ms: 2500 }
+  if (event.startsWith('badge:')) return { kind: 'badge', ms: 2000 }
   switch (event) {
+    case 'ky-ngo': return { kind: 'kyngo', ms: 2500 }
+    case 'ky-ngo-done': return { kind: 'sparkle', ms: 1500 }
+    case 'thien-kiep': return { kind: 'meteor', ms: 3000 }
+    case 'cong-phap': return { kind: 'scroll', ms: 2000 }
+    case 'cong-phap-ult': return { kind: 'ult', ms: 3500 }
+    case 'luan-dao-win': return { kind: 'win', ms: 2500 }
+    case 'luan-dao-lose': return { kind: 'lose', ms: 2000 }
+    case 'artifact': return { kind: 'treasure', ms: 1500 }
     case 'tribulation-started': return { kind: 'lightning', ms: 4000 }
     case 'breakthrough': return { kind: 'gold', ms: 1500 }
     case 'tribulation-failed': return { kind: 'rain', ms: 3000 }
@@ -26,7 +38,7 @@ export function tribEffect(event: string): { kind: 'lightning' | 'gold' | 'rain'
 }
 
 // Khung hình chữ cho overlay: nhịp đổi theo tick (mỗi 250 ms ở pane).
-export function overlayFrame(kind: 'lightning' | 'gold' | 'rain' | 'red' | 'tamma', tick: number): string {
+export function overlayFrame(kind: FxName, tick: number): string {
   const t = tick % 4
   switch (kind) {
     case 'lightning': return ['  ╱╲⚡╱╲  ', ' ⚡ ╲╱ ⚡ ', '  ╲⚡╱   ', ' ⚡╱╲⚡╱  '][t]
@@ -34,6 +46,16 @@ export function overlayFrame(kind: 'lightning' | 'gold' | 'rain' | 'red' | 'tamm
     case 'rain': return ['ˇ  ˇ  ˇ  ˇ', ' ˇ  ˇ  ˇ  ˇ', 'ˇ  ˇ  ˇ  ˇ ', ' ˇ  ˇ  ˇ  ˇ'][t]
     case 'red': return ['✖ Đan Điền Vỡ ✖', '✖ Đan Điền Vỡ ✖', '  ✖ Vỡ ✖  ', '✖ Đan Điền Vỡ ✖'][t]
     case 'tamma': return ['👹 Tâm Ma Trễ Deadline', '  👹 Tâm Ma Trễ Deadline', '👹 Tâm Ma Trễ Deadline  ', ' 👹 Tâm Ma Trễ Deadline '][t]
+    case 'kyngo': return ['  ✧ 🎲 ✧  ', ' ✦  🎲  ✦ ', '✧   🎲   ✧', ' ✦  🎲  ✦ '][t]
+    case 'sparkle': return ['· ✧ · ✦ · ✧ ·', '✦ · ✧ · ✦ · ✧', '· ✦ · ✧ · ✦ ·', '✧ · ✦ · ✧ · ✦'][t]
+    case 'fire': return ['  ˄ 🔥 ˄  ', ' ˄🔥˄🔥˄ ', '🔥˄🔥˄🔥˄🔥', ' ˄🔥˄🔥˄ '][t]
+    case 'meteor': return ['☄️        ', '   ☄️     ', '      ☄️  ', '   ✦ ✧ ✦ '][t]
+    case 'scroll': return ['📜 ▁▂▃', '📜 ▁▂▃▄▅', '📜 ▁▂▃▄▅▆▇', '📖 ✧ Lĩnh Ngộ ✧'][t]
+    case 'ult': return ['🌟 ━━━━━━━━ 🌟', '✦ 🌟 TUYỆT KỸ 🌟 ✦', '🌟 ━━━━━━━━ 🌟', '✧ 🌟 ĐẠI THÀNH 🌟 ✧'][t]
+    case 'win': return ['⚔️  💥  ⚔️', '🏆 Thắng! 🏆', '⚔️  ✨  ⚔️', '🏆 Thắng! 🏆'][t]
+    case 'lose': return ['⚔️  💨  ', '🥀 Thua rồi...', '   💨  ⚔️', '🥀 Thua rồi...'][t]
+    case 'treasure': return ['🎁 ✧', '🎁 ✧ ✦', '🎁 ✧ ✦ ✧', '🎁 Pháp Bảo!'][t]
+    case 'badge': return ['🏅', '✦ 🏅 ✦', '✧ ✦ 🏅 ✦ ✧', '🏅 Thành Tựu!'][t]
   }
 }
 

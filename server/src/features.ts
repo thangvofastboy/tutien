@@ -2,6 +2,7 @@
 import { applyUsage, need, TOKENS_PER_EXP, type Player, type Extra } from '../../hooks/rules.ts'
 import { grantArtifact, randomArtifact, pushInbox, streak, type Extras, type Day, type Pill } from './extras.ts'
 import { vnDay } from '../../hooks/holidays.ts'
+import { cpEffects, type CongPhap } from './congphap.ts'
 
 const DAY = 86_400_000
 
@@ -12,7 +13,7 @@ export type Features = {
   kyNgoTotal?: number
   luanDao?: { day: string; n: number; wins: number; losses: number }
   streakClaimed?: number[]
-  congPhap?: { points: number; learned: Record<string, number> }
+  congPhap?: CongPhap
   teamWeek?: string // tuần đã báo Thiên Kiếp Đồng Tâm
 }
 type St = { player: Player; linhThach?: number; inbox?: Extras['inbox']; pills?: Extras['pills']; history?: Record<string, Day>; badges?: string[] } & Features
@@ -30,44 +31,14 @@ export const isLinhCan = (v: unknown): v is LinhCan => typeof v === 'string' && 
 // Ngũ hành tương khắc: kim khắc mộc, mộc khắc thổ, thổ khắc thủy, thủy khắc hỏa, hỏa khắc kim.
 export const KHAC: Record<LinhCan, LinhCan> = { kim: 'moc', moc: 'tho', tho: 'thuy', thuy: 'hoa', hoa: 'kim' }
 
-// ---------- Công pháp (cây kỹ năng) ----------
-export const CONG_PHAP: Record<string, { name: string; icon: string; desc: string; max: number }> = {
-  'kiem-y': { name: 'Kiếm Ý Tâm Pháp', icon: '⚔️', desc: '+0,3% EXP mỗi tầng (ngoài trần pháp bảo)', max: 3 },
-  'van-kiep': { name: 'Vạn Kiếp Bất Diệt Thể', icon: '🛡️', desc: '−1% token thiên phạt mỗi tầng', max: 3 },
-  'kim-cang': { name: 'Kim Cang Hộ Mệnh', icon: '💎', desc: '−0,03% tỷ lệ tử vong mỗi tầng', max: 3 },
-  'thien-co': { name: 'Thiên Cơ Thuật', icon: '🔮', desc: '+1% cơ hội kỳ ngộ mỗi tầng', max: 3 },
-  'tu-bao': { name: 'Tụ Bảo Quyết', icon: '💰', desc: '+2 linh thạch mỗi kỳ ngộ và trận luận đạo thắng, mỗi tầng', max: 3 },
-}
-export const RESET_COST = 20
-const lvl = (st: Features, id: string) => st.congPhap?.learned[id] ?? 0
-// Người chơi cũ chưa có công pháp: nhận điểm bằng số lần đã đột phá (bậc hiện tại − 1).
-export const congPhapOf = (st: St) => st.congPhap ?? { points: st.player.realm - 1, learned: {} }
-export function learn(st: St, id: string): { congPhap?: Features['congPhap']; error?: string; text?: string } {
-  const cp = congPhapOf(st)
-  const c = CONG_PHAP[id]
-  if (!c) return { error: `Không có công pháp "${id}". Xem /tutien cong-phap.` }
-  const have = cp.learned[id] ?? 0
-  if (have >= c.max) return { error: `${c.icon} ${c.name} đã đại thành (tầng ${c.max}). Học nữa là tẩu hỏa nhập ma đó!` }
-  if (cp.points < 1) return { error: '📜 Hết điểm công pháp rồi. Đột phá thêm một bậc để nhận điểm.' }
-  return { congPhap: { points: cp.points - 1, learned: { ...cp.learned, [id]: have + 1 } }, text: `📖 Lĩnh ngộ ${c.icon} ${c.name} tầng ${have + 1}! Đầu óc bỗng thông suốt như vừa đọc được stack trace.` }
-}
-export function resetCongPhap(st: St): { congPhap?: Features['congPhap']; linhThach?: number; error?: string; text?: string } {
-  const cp = congPhapOf(st)
-  const spent = Object.values(cp.learned).reduce((a, b) => a + b, 0)
-  if (spent === 0) return { error: 'Chưa học công pháp nào, tẩy tủy gì mà tẩy.' }
-  if ((st.linhThach ?? 0) < RESET_COST) return { error: `🧪 Tẩy tủy cần ${RESET_COST} linh thạch.` }
-  return { congPhap: { points: cp.points + spent, learned: {} }, linhThach: (st.linhThach ?? 0) - RESET_COST, text: `🧪 Tẩy tủy xong! Hoàn lại ${spent} điểm công pháp, kinh mạch sạch bong như repo mới clone.` }
-}
+// ---------- Công pháp: cây riêng của từng lớp, xem congphap.ts ----------
+export { congPhapOf, learn, resetCongPhap, treeView, RESET_COST } from './congphap.ts'
 
 // Bonus của linh căn và công pháp cho một lượt (Worker cộng vào ctx).
-export function featureExtra(st: Features): Extra {
+export function featureExtra(st: St): Extra {
   const lc = st.linhCan ? LINH_CAN[st.linhCan].bonus : {}
-  return {
-    exp: lc.exp, trib: lc.trib, death: lc.death,
-    pillExp: lvl(st, 'kiem-y') * 0.003,
-    pillTrib: lvl(st, 'van-kiep') * 0.01,
-    deathCut: lvl(st, 'kim-cang') * 0.0003,
-  }
+  const cp = cpEffects(st)
+  return { exp: lc.exp, trib: lc.trib, death: lc.death, pillExp: cp.exp, pillTrib: cp.trib, deathCut: cp.death }
 }
 
 // ---------- Kỳ ngộ ----------
@@ -135,8 +106,8 @@ export const KY_NGO_PER_DAY = 3
 export const KY_NGO_MIN_TOKENS = 20_000
 export const KY_NGO_TTL = DAY
 
-export function kyNgoChance(st: Features): number {
-  return KY_NGO_CHANCE + (st.linhCan === 'hoa' ? 0.02 : 0) + lvl(st, 'thien-co') * 0.01
+export function kyNgoChance(st: St): number {
+  return KY_NGO_CHANCE + (st.linhCan === 'hoa' ? 0.02 : 0) + cpEffects(st).kyngo
 }
 // Sau một lượt: có thể gặp kỳ ngộ (không chồng lên kỳ ngộ đang chờ, tối đa 3 lần mỗi ngày).
 export function maybeKyNgo(st: St, tokens: number, now: number, rng: () => number): { kyNgo?: Features['kyNgo']; kyNgoDay?: Features['kyNgoDay']; hit: boolean } {
@@ -172,7 +143,8 @@ export function resolveKyNgo(st: St, choice: string, now: number, rng: () => num
   let pills = st.pills
   const events: string[] = []
   let gain = ''
-  const ltBonus = (n: number) => Math.round(n * (st.linhCan === 'moc' ? 1.5 : 1)) + lvl(st, 'tu-bao') * 2
+  const cpLt = cpEffects(st).lt
+  const ltBonus = (n: number) => Math.round(n * (st.linhCan === 'moc' ? 1.5 : 1)) + cpLt
   switch (o.kind) {
     case 'exp': {
       if (p.trib) { lt += 5; gain = '+5 linh thạch (đang thiên phạt nên EXP hóa thành linh thạch)'; break }
@@ -199,7 +171,7 @@ export function resolveKyNgo(st: St, choice: string, now: number, rng: () => num
     case 'lose-lt': { const n = Math.min(lt, o.n ?? 0); lt -= n; gain = n ? `−${n} linh thạch` : 'túi rỗng nên không mất gì 😅'; break }
     case 'nothing': gain = 'không được gì, nhưng có thêm một câu chuyện để kể'
   }
-  if (o.kind !== 'lose-lt' && o.kind !== 'nothing' && o.kind !== 'lt' && lvl(st, 'tu-bao')) { lt += lvl(st, 'tu-bao') * 2; gain += ` · 💰 Tụ Bảo +${lvl(st, 'tu-bao') * 2}` }
+  if (o.kind !== 'lose-lt' && o.kind !== 'nothing' && o.kind !== 'lt' && cpLt) { lt += cpLt; gain += ` · 📖 công pháp +${cpLt} linh thạch` }
   const total = (st.kyNgoTotal ?? 0) + 1
   let badges = st.badges ?? []
   if (total >= 10 && !badges.includes('co-duyen')) { badges = [...badges, 'co-duyen']; events.push('badge:co-duyen') }
@@ -240,8 +212,8 @@ export function streakStep(st: St, now: number, rng: () => number): { state: Par
 export const LUAN_DAO_PER_DAY = 3
 export const LUAN_DAO_WIN = 5
 export const LUAN_DAO_TEACH = 2
-export type Fighter = { name: string; realm: number; artifacts: number; linhCan?: LinhCan }
-const power = (f: Fighter) => f.realm * 10 + f.artifacts * 3
+export type Fighter = { name: string; realm: number; artifacts: number; linhCan?: LinhCan; duel?: number }
+const power = (f: Fighter) => f.realm * 10 + f.artifacts * 3 + (f.duel ?? 0)
 const MOVES = [
   '%s tung chiêu "Ctrl+Z Thần Công", thời gian quay ngược ba giây!',
   '%s niệm chú "It works on my machine", khiên vô hình hiện ra.',

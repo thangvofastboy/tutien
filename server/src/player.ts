@@ -5,6 +5,7 @@ import {
   bicanhJoin, craftPill, usePill, beQuanStart, beQuanEnd, sellArtifact, buyItem, SHOP, pushInbox, reconcileStep,
   type Pill,
 } from './extras.ts'
+import { cpEffects } from './congphap.ts'
 import { resolveKyNgo, learn, resetCongPhap, duel, duelCount, isLinhCan, LUAN_DAO_PER_DAY, LUAN_DAO_WIN, type Fighter } from './features.ts'
 import { CLASSES as C, GENDERS as G, type Artifact } from '../../hooks/rules.ts'
 
@@ -203,8 +204,7 @@ export class PlayerDO {
       const c = duelCount(st, now)
       if (c.n >= LUAN_DAO_PER_DAY) return bad(`⏳ Hôm nay đã luận đạo ${LUAN_DAO_PER_DAY} trận rồi. Mai quay lại, kẻo đối thủ ám ảnh.`)
       const r = duel(body.a as Fighter, body.b as Fighter, Math.random)
-      const tuBao = (st.congPhap?.learned['tu-bao'] ?? 0) * 2
-      const gain = r.win ? LUAN_DAO_WIN + tuBao : 0
+      const gain = r.win ? LUAN_DAO_WIN + cpEffects(st).lt : 0
       const wins = c.wins + (r.win ? 1 : 0)
       let badges = st.badges ?? []
       if (wins >= 10 && !badges.includes('vo-dich')) badges = [...badges, 'vo-dich']
