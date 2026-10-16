@@ -25,6 +25,22 @@ export const SETTINGS: Setting[] = [
     options: [{ value: 'none', label: 'Không', icon: '🚫' }, ...PERSONAS.map(p => ({ value: p.id, label: p.name, icon: '🎭' })), { value: 'tuy-chinh', label: 'Tùy chỉnh (đặt bằng /tutien persona tuy-chinh)', icon: '✏️' }] },
 ]
 
+// Lệnh bấm được trong pane Cài đặt: chỉ lệnh không cần tham số, gom theo nhóm màu.
+export type CommandGroup = { title: string; color: string; items: { arg: string; label: string }[] }
+export const COMMAND_GROUPS: CommandGroup[] = [
+  { title: '📈 Xem', color: '#79c0ff', items: [
+    { arg: 'status', label: '📈 Trạng thái' }, { arg: 'top', label: '🏆 Bảng xếp hạng' },
+    { arg: 'history', label: '📊 Lịch sử' }, { arg: 'team', label: '👥 Team' }] },
+  { title: '📚 Khám phá', color: '#7ee787', items: [
+    { arg: 'truyen', label: '📖 Cốt truyện' }, { arg: 'thu-vien', label: '🗃️ Thư viện' },
+    { arg: 'bicanh', label: '🌀 Bí cảnh' }, { arg: 'cho', label: '🛒 Chợ' }] },
+  { title: '🚀 Mở', color: '#ffa657', items: [
+    { arg: 'panel', label: '🖼️ Panel nhân vật' }, { arg: 'start', label: '🌱 Bắt đầu' },
+    { arg: 'web', label: '🌐 Mini web' }, { arg: 'help', label: '❓ Trợ giúp' }] },
+]
+// Lệnh chỉ mở pane/cửa sổ khác, kết quả không hiện trong thẻ.
+export const OPEN_COMMANDS = ['setting', 'panel', 'start']
+
 // Màu nền thật của panel theo lựa chọn; 'terminal' là không tô, nên nền là nền terminal đang dùng.
 export const PANEL_BG: Record<string, string | undefined> = {
   terminal: undefined, ink: '#0d1117', navy: '#1e2a44', jade: '#0f2a1f', paper: '#f5f0e1',

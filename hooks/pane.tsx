@@ -6,7 +6,7 @@ import { tribEffect, overlayFrame, effectActive } from './effects'
 import { paneLine } from './persona'
 import { bandLines } from './band'
 import { realmColor, gradientRuns, meter, rankColor, EVENT_BANNERS } from './look'
-import { SETTINGS, type Setting, PANEL_BG, THEMES, TEXT_SIZES, withDefaults } from './settings'
+import { SETTINGS, COMMAND_GROUPS, OPEN_COMMANDS, type Setting, PANEL_BG, THEMES, TEXT_SIZES, withDefaults } from './settings'
 import { STEPS, STEP_STYLE, initWizard, advance, type Wizard } from './start'
 import { PROLOGUE, CLASS_ORIGINS, STARTER_QUESTS } from './story'
 import { CLASSES, GENDERS } from './rules'
@@ -212,12 +212,13 @@ const QUICK = [
   { arg: 'team', label: '👥 Team' },
   { arg: 'setting', label: '⚙️ Cài đặt' },
 ]
-function runQuick($: any, arg: string) {
+function runQuick($: any, arg: string, label?: string) {
   void (async () => {
-    const title = QUICK.find(q => q.arg === arg)?.label ?? arg
-    if (arg !== 'setting') await update($, quickOut, () => ({ title, text: '⏳ Đang tải…' }))
+    const title = label ?? QUICK.find(q => q.arg === arg)?.label ?? arg
+    const opens = OPEN_COMMANDS.includes(arg)
+    if (!opens) await update($, quickOut, () => ({ title, text: '⏳ Đang tải…' }))
     const r = await $.command.run({ command: 'tutien', args: arg }).catch(() => undefined)
-    if (arg === 'setting') return // cài đặt mở pane riêng
+    if (opens) return // mở pane khác
     await update($, quickOut, () => ({ title, text: String(r?.text ?? '').trim() || 'Không có dữ liệu.' }))
   })()
 }
@@ -371,9 +372,26 @@ export async function renderSettings($: any, e: any) {
   SETTINGS.forEach((s, i) => { stored[s.key] = got[i] })
   const values = withDefaults(stored)
   const { th, sz } = await look($)
+  const out = await read($, quickOut)
+  const { Button } = els
   return (
     <Box flexDirection="column">
       <Text size={sz.title} bold color={th.title}>⚙️ Cài đặt Tu Tiên</Text>
+      {Button ? COMMAND_GROUPS.map(g => (
+        <Box key={`cmd:${g.title}`} flexDirection="column" borderStyle="round" borderColor={g.color} paddingX={1}>
+          <Text bold color={g.color}>{g.title}</Text>
+          <Box flexDirection="row" flexWrap="wrap" gap={1}>
+            {g.items.map(i => <Button key={`cmd:${i.arg}`} onPress={() => runQuick($, i.arg, i.label)}>{i.label}</Button>)}
+          </Box>
+        </Box>
+      )) : null}
+      {out ? (
+        <Box key="cmd-out" flexDirection="column" borderStyle="round" borderColor="#79c0ff" paddingX={1}>
+          <Text bold color="#79c0ff">{out.title}</Text>
+          {out.text.split('\n').map((t, i) => <Text key={`o-${i}`}>{t || ' '}</Text>)}
+          {Button ? <Button key="cmd-close" onPress={() => void update($, quickOut, () => null)}>✖ Đóng</Button> : null}
+        </Box>
+      ) : null}
       {SETTINGS.map(s => settingChoice(els, s, {
           value: values[s.key],
           onSelect: (v: string) => {
