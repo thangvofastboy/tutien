@@ -35,7 +35,7 @@ test('Claude Code Desktop: wizard /tutien start và pane Cài đặt vẽ đư�
   expect(await start.find({ type: 'Text', text: /Bước 1\/7/ })).toBeDefined()
   await start.unmount()
   const set = await $.ui.mount({ plugin: 'tutien', surface: 'desktop', component: 'Pane', requestId: 'tu-tien-settings', props: { title: 'Cài đặt', bodyColumns: 80 } } as any)
-  expect(await set.find({ type: 'Select', key: 'tutien.panelbg' })).toBeDefined()
+  expect(await set.find({ type: 'Button', key: 'tutien.panelbg:ink' })).toBeDefined()
   await set.unmount()
 })
 

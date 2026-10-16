@@ -1,28 +1,28 @@
 // hooks/settings.ts — các mục trong pane Cài đặt (/tutien setting). Giá trị lưu ở $.store theo key.
 import { PERSONAS } from './persona'
 
-export type Setting = { key: string; label: string; options: { value: string; label: string }[]; default: string }
+export type Setting = { key: string; label: string; options: { value: string; label: string; icon?: string }[]; default: string; icon: string; color: string }
 
-const onOff = [{ value: 'on', label: 'Bật' }, { value: 'off', label: 'Tắt' }]
+const onOff = [{ value: 'on', label: 'Bật', icon: '🟢' }, { value: 'off', label: 'Tắt', icon: '⚫' }]
 
 export const SETTINGS: Setting[] = [
-  { key: 'tutien.display', label: 'Cách vẽ nhân vật', default: 'raster',
-    options: [{ value: 'raster', label: 'Ô màu (mọi terminal)' }, { value: 'image', label: 'Ảnh (kitty, WezTerm)' }, { value: 'text', label: 'Chỉ chữ' }] },
-  { key: 'tutien.statusline', label: 'Dòng trạng thái dưới ô nhập (có dấu ⚠)', default: 'off', options: onOff },
-  { key: 'tutien.band', label: 'Khung nhỏ phía trên ô nhập', default: 'on', options: onOff },
-  { key: 'tutien.claudePersona', label: 'Claude nói theo tính cách nhân vật', default: 'off', options: onOff },
-  { key: 'tutien.chatlines', label: 'Lời chào và thông báo trong khung chat', default: 'on', options: onOff },
-  { key: 'tutien.effects', label: 'Hiệu ứng thiên phạt và hào quang', default: 'on', options: onOff },
-  { key: 'tutien.panelbg', label: 'Màu nền panel nhân vật', default: 'terminal',
-    options: [{ value: 'terminal', label: 'Theo terminal' }, { value: 'ink', label: 'Mực đen' }, { value: 'navy', label: 'Xanh đêm' }, { value: 'jade', label: 'Ngọc lục' }, { value: 'paper', label: 'Giấy vàng' }] },
-  { key: 'tutien.theme', label: 'Theme màu chữ', default: 'mac-dinh',
-    options: [{ value: 'mac-dinh', label: 'Mặc định' }, { value: 'kim-dan', label: 'Kim Đan' }, { value: 'bang-tam', label: 'Băng Tâm' }, { value: 'huyet-sat', label: 'Huyết Sát' }, { value: 'thanh-moc', label: 'Thanh Mộc' }, { value: 'tu-vi', label: 'Tử Vi' }] },
-  { key: 'tutien.textsize', label: 'Cỡ chữ trong panel (Desktop, web, điện thoại)', default: 'vua',
-    options: [{ value: 'nho', label: 'Nhỏ' }, { value: 'vua', label: 'Vừa' }, { value: 'lon', label: 'Lớn' }] },
-  { key: 'tutien.compact', label: 'Chế độ gọn (ẩn nhiệm vụ và bảng xếp hạng trong panel)', default: 'off', options: onOff },
-  { key: 'tutien.autoupdate', label: 'Tự cập nhật khi mở Claude Code', default: 'off', options: onOff },
-  { key: 'tutien.persona', label: 'Tính cách nhân vật', default: 'none',
-    options: [{ value: 'none', label: 'Không' }, ...PERSONAS.map(p => ({ value: p.id, label: p.name })), { value: 'tuy-chinh', label: 'Tùy chỉnh (đặt bằng /tutien persona tuy-chinh)' }] },
+  { key: 'tutien.display', icon: '🎨', color: '#79c0ff', label: 'Cách vẽ nhân vật', default: 'raster',
+    options: [{ value: 'raster', label: 'Ô màu (mọi terminal)', icon: '🟦' }, { value: 'image', label: 'Ảnh (kitty, WezTerm)', icon: '🖼️' }, { value: 'text', label: 'Chỉ chữ', icon: '🔤' }] },
+  { key: 'tutien.statusline', icon: '📟', color: '#56d4dd', label: 'Dòng trạng thái dưới ô nhập (có dấu ⚠)', default: 'off', options: onOff },
+  { key: 'tutien.band', icon: '🎚️', color: '#a5d6ff', label: 'Khung nhỏ phía trên ô nhập', default: 'on', options: onOff },
+  { key: 'tutien.claudePersona', icon: '🎭', color: '#d2a8ff', label: 'Claude nói theo tính cách nhân vật', default: 'off', options: onOff },
+  { key: 'tutien.chatlines', icon: '💬', color: '#7ee787', label: 'Lời chào và thông báo trong khung chat', default: 'on', options: onOff },
+  { key: 'tutien.effects', icon: '✨', color: '#e3b341', label: 'Hiệu ứng thiên phạt và hào quang', default: 'on', options: onOff },
+  { key: 'tutien.panelbg', icon: '🖼️', color: '#ffa657', label: 'Màu nền panel nhân vật', default: 'terminal',
+    options: [{ value: 'terminal', label: 'Theo terminal', icon: '💻' }, { value: 'ink', label: 'Mực đen', icon: '⬛' }, { value: 'navy', label: 'Xanh đêm', icon: '🟦' }, { value: 'jade', label: 'Ngọc lục', icon: '🟩' }, { value: 'paper', label: 'Giấy vàng', icon: '🟨' }] },
+  { key: 'tutien.theme', icon: '🌈', color: '#f778ba', label: 'Theme màu chữ', default: 'mac-dinh',
+    options: [{ value: 'mac-dinh', label: 'Mặc định', icon: '⚪' }, { value: 'kim-dan', label: 'Kim Đan', icon: '🟡' }, { value: 'bang-tam', label: 'Băng Tâm', icon: '🔵' }, { value: 'huyet-sat', label: 'Huyết Sát', icon: '🔴' }, { value: 'thanh-moc', label: 'Thanh Mộc', icon: '🟢' }, { value: 'tu-vi', label: 'Tử Vi', icon: '🟣' }] },
+  { key: 'tutien.textsize', icon: '🔠', color: '#4fc3f7', label: 'Cỡ chữ trong panel (Desktop, web, điện thoại)', default: 'vua',
+    options: [{ value: 'nho', label: 'Nhỏ', icon: '🔹' }, { value: 'vua', label: 'Vừa', icon: '🔷' }, { value: 'lon', label: 'Lớn', icon: '🔶' }] },
+  { key: 'tutien.compact', icon: '📦', color: '#ffd54f', label: 'Chế độ gọn (ẩn nhiệm vụ và bảng xếp hạng trong panel)', default: 'off', options: onOff },
+  { key: 'tutien.autoupdate', icon: '🔄', color: '#3fb950', label: 'Tự cập nhật khi mở Claude Code', default: 'off', options: onOff },
+  { key: 'tutien.persona', icon: '🧙', color: '#bc8cff', label: 'Tính cách nhân vật', default: 'none',
+    options: [{ value: 'none', label: 'Không', icon: '🚫' }, ...PERSONAS.map(p => ({ value: p.id, label: p.name, icon: '🎭' })), { value: 'tuy-chinh', label: 'Tùy chỉnh (đặt bằng /tutien persona tuy-chinh)', icon: '✏️' }] },
 ]
 
 // Màu nền thật của panel theo lựa chọn; 'terminal' là không tô, nên nền là nền terminal đang dùng.

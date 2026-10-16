@@ -6,7 +6,7 @@ import { tribEffect, overlayFrame, effectActive } from './effects'
 import { paneLine } from './persona'
 import { bandLines } from './band'
 import { realmColor, gradientRuns, meter, rankColor, EVENT_BANNERS } from './look'
-import { SETTINGS, PANEL_BG, THEMES, TEXT_SIZES, withDefaults } from './settings'
+import { SETTINGS, type Setting, PANEL_BG, THEMES, TEXT_SIZES, withDefaults } from './settings'
 import { STEPS, STEP_STYLE, initWizard, advance, type Wizard } from './start'
 import { PROLOGUE, CLASS_ORIGINS, STARTER_QUESTS } from './story'
 import { CLASSES, GENDERS } from './rules'
@@ -329,7 +329,24 @@ export function choice(els: any, c: { key: string; label: string; options: Opt[]
   )
 }
 
-// Pane Cài đặt (/tutien setting): mỗi mục một Select; chọn là lưu ngay vào $.store.
+// Mục cài đặt: tiêu đề có icon và màu, mỗi lựa chọn là một nút bấm bằng chuột; nút đang chọn có dấu ✓.
+function settingChoice(els: any, s: Setting, c: { value?: string; onSelect: (v: string) => void }) {
+  const { Box, Text, Button } = els
+  const cur = s.options.find(o => o.value === c.value)
+  return (
+    <Box key={s.key} flexDirection="column" borderStyle="round" borderColor={s.color} paddingX={1}>
+      <Text bold color={s.color}>{s.icon} {s.label}</Text>
+      <Box flexDirection="row" flexWrap="wrap" gap={1}>
+        {s.options.map(o => (
+          <Button key={`${s.key}:${o.value}`} onPress={() => c.onSelect(o.value)}>{o.value === c.value ? '✓ ' : ''}{o.icon ? `${o.icon} ` : ''}{o.label}</Button>
+        ))}
+      </Box>
+      {cur ? <Text dimColor color={s.color}>Đang chọn: {cur.icon ?? ''} {cur.label}</Text> : null}
+    </Box>
+  )
+}
+
+// Pane Cài đặt (/tutien setting): mỗi mục một thẻ nút bấm; chọn là lưu ngay vào $.store.
 export const SETTINGS_ID = 'tu-tien-settings'
 
 export async function renderSettings($: any, e: any) {
@@ -344,10 +361,7 @@ export async function renderSettings($: any, e: any) {
   return (
     <Box flexDirection="column">
       <Text size={sz.title} bold color={th.title}>⚙️ Cài đặt Tu Tiên</Text>
-      {SETTINGS.map(s => choice(els, {
-          key: s.key,
-          label: s.label,
-          options: s.options,
+      {SETTINGS.map(s => settingChoice(els, s, {
           value: values[s.key],
           onSelect: (v: string) => {
             void (async () => {
