@@ -94,8 +94,11 @@ export async function logGreeting($: any): Promise<void> {
 
 // Ảnh bậc: assets/realms/<lớp>/<giới>/NN-F.png (khung 1). Khung hào quang được chọn theo đồng hồ.
 // Ảnh nhân vật cho bề mặt không có Raster: PNG nhúng trong SVG, giữ nét pixel khi phóng to.
-export const svgSprite = (b64: string) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="192" height="192"><image href="data:image/png;base64,${b64}" width="96" height="96" style="image-rendering:pixelated"/></svg>`
+// smooth: phóng to có làm mịn (nội suy) thay vì giữ nét pixel; size: cạnh ảnh theo px.
+export const svgSprite = (b64: string, smooth = false, size = 192) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="${size}" height="${size}"><image href="data:image/png;base64,${b64}" width="96" height="96" style="image-rendering:${smooth ? 'auto' : 'pixelated'}"/></svg>`
+// Cỡ ảnh theo bội nguyên của 96 px nên giữ nét; 'to' lấp gần hết bề ngang panel.
+export const ART_SIZES: Record<string, number> = { vua: 192, lon: 288, to: 384 }
 
 // Ảnh nhân vật tự chọn (/tutien hinh): dùng chung mọi bậc, chỉ lưu trên máy này.
 // Svg dùng base64 lưu trong store; chế độ Image đọc lại file gốc nếu còn.
@@ -262,12 +265,14 @@ export async function renderPane($: any, e: any) {
   )
   const mode = displayMode(display)
   const custom = await avatarOf($)
+  const [artSize, smooth] = await Promise.all([setting($, 'tutien.artsize'), setting($, 'tutien.artsmooth')])
+  const artPx = ART_SIZES[artSize ?? ''] ?? ART_SIZES.vua
   let art: any = <Text>{alt}</Text>
   if (mode !== 'text' && e.surface !== 'terminal' && Svg) {
     // Claude Code Desktop và app điện thoại không vẽ Raster/Image (chỉ là fragment rỗng): vẽ ảnh PNG qua Svg.
     const file = realmImage($.plugin.root, p)
     const b64 = custom?.b64 ?? await cachedRead(`png:${file}`, () => $.fs.read(file, { as: 'bytes' }).then((x: any) => x?.base64 ?? null, () => null))
-    if (b64) art = <Svg key="realm" alt={alt} width={192} height={192} source={svgSprite(b64)} />
+    if (b64) art = <Svg key="realm" alt={alt} width={artPx} height={artPx} source={svgSprite(b64, smooth === 'on', artPx)} />
   } else if ((mode === 'image' || (mode === 'raster' && custom?.file)) && Image) {
     // Ảnh tự chọn không có bản ô màu, nên terminal có Image thì vẽ ảnh thật.
     const own = custom?.file && await $.fs.stat(custom.file).then(() => true, () => false) ? custom.file : null

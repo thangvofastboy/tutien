@@ -8,6 +8,9 @@ const onOff = [{ value: 'on', label: 'Bật', icon: '🟢' }, { value: 'off', la
 export const SETTINGS: Setting[] = [
   { key: 'tutien.display', icon: '🎨', color: '#79c0ff', label: 'Cách vẽ nhân vật', default: 'raster',
     options: [{ value: 'raster', label: 'Ô màu (mọi terminal)', icon: '🟦' }, { value: 'image', label: 'Ảnh (kitty, WezTerm)', icon: '🖼️' }, { value: 'text', label: 'Chỉ chữ', icon: '🔤' }] },
+  { key: 'tutien.artsize', icon: '🔍', color: '#56d4dd', label: 'Cỡ ảnh nhân vật (Desktop, điện thoại)', default: 'vua',
+    options: [{ value: 'vua', label: 'Vừa', icon: '🔹' }, { value: 'lon', label: 'Lớn', icon: '🔷' }, { value: 'to', label: 'Rất lớn', icon: '🔶' }] },
+  { key: 'tutien.artsmooth', icon: '🪄', color: '#d2a8ff', label: 'Làm mịn ảnh khi phóng to (tắt = giữ nét pixel)', default: 'off', options: onOff },
   { key: 'tutien.statusline', icon: '📟', color: '#56d4dd', label: 'Dòng trạng thái dưới ô nhập (có dấu ⚠)', default: 'off', options: onOff },
   { key: 'tutien.band', icon: '🎚️', color: '#a5d6ff', label: 'Khung nhỏ phía trên ô nhập', default: 'on', options: onOff },
   { key: 'tutien.claudePersona', icon: '🎭', color: '#d2a8ff', label: 'Claude nói theo tính cách nhân vật', default: 'off', options: onOff },
