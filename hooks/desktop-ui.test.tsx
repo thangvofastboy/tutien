@@ -6,14 +6,14 @@ const RUN = (args: string) => ({ command: 'tutien', args, origin: { kind: 'compo
 const reply = (status: number, body: unknown) => ({ value: { status, ok: status < 300, headers: {}, text: JSON.stringify(body) } }) as any
 
 // Ghi danh qua server giả để pane có nhân vật (bậc 7, Kiếm Tu Nam).
-async function withPlayer($: any, on: any) {
+async function withPlayer($: any, on: any, readB64 = (_path: string) => 'iVBORw0KGgo=') {
   mock.store(on)
   on('http.fetch', async ($: any, e: any) => {
     if (String(e.url).includes('/register')) return reply(200, { key: 'k' })
     if (String(e.url).includes('/leaderboard')) return reply(200, { rows: [{ rank: 1, name: 'Top', cls: 'Ma Tu', realm: 20, score: 50 }, { rank: 9, name: 'ThangVo', cls: 'Kiếm Tu', realm: 7, score: 0 }] })
     return reply(200, { player: { ...newPlayer('Kiếm Tu', 'Nam'), realm: 7 }, status: { quest: { pct: 40 }, bicanh: null, tamma: { pct: 30 } }, social: { tong: { name: 'Thanh Vân' } } })
   })
-  on('fs.read', async () => ({ value: { base64: 'iVBORw0KGgo=' } }) as any)
+  on('fs.read', async (_$: any, e: any) => ({ value: { base64: readB64(String(e.path)) } }) as any)
   await $.command.run(RUN('register ThangVo "Kiếm Tu" Nam'))
 }
 
@@ -95,8 +95,7 @@ test('chế độ gọn: pane ẩn thẻ nhiệm vụ và bảng xếp hạng, v
 })
 
 test('/tutien hinh: ảnh tự chọn dùng chung mọi bậc, xoa thì về ảnh mặc định', async ($, on) => {
-  await withPlayer($, on)
-  on('fs.read', async (_$: any, e: any) => ({ value: { base64: String(e.path).endsWith('avt.png') ? 'iVBORw0KGgoAVT' : 'iVBORw0KGgoDEF' } }) as any)
+  await withPlayer($, on, path => (path.endsWith('avt.png') ? 'iVBORw0KGgoAVT' : 'iVBORw0KGgoDEF'))
   expect((await $.command.run(RUN('hinh /tmp/avt.png'))).text).toContain('Đã đặt ảnh')
   let ui = await $.ui.mount({ plugin: 'tutien', surface: 'desktop', component: 'Pane', requestId: 'tu-tien', props: { title: 'Tu tiên', bodyColumns: 80 } } as any)
   expect(String((await ui.find({ type: 'Svg' }))?.props.source)).toContain('iVBORw0KGgoAVT')

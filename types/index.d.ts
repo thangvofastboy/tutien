@@ -25,6 +25,7 @@ declare module 'claude-code' {
       typed: number
       info: { quest: number; bicanh: string | null; tamma: number | null; tong: string | null } | null
       board: { rank: number; name: string; cls: string; realm: number; score: number }[]
+      quickOut: { title: string; text: string } | null
     }
   }
 }
