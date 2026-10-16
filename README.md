@@ -161,6 +161,8 @@ Nhân vật gắn với tài khoản Claude của máy tạo ra nó (mod đọc 
 1. Trên máy đang có nhân vật: `/tutien lien-ket` → nhận mã 8 ký tự, hết hạn sau 24 giờ, dùng một lần.
 2. Trên máy kia, **cùng tài khoản Claude**: `/tutien dang-nhap <tên> <mã>`.
 
+Nếu máy kia đã có nhân vật riêng (cùng tài khoản Claude), `dang-nhap` gộp hết vào nhân vật chính: cộng EXP tích lũy, linh thạch, pháp bảo, huy hiệu, đồ và token, rồi **xóa nhân vật cũ**. Nếu nhân vật chính đang thiên phạt thì EXP chỉ cộng tới trần của bậc hiện tại, không nhảy bậc. Tông, bạn tu và đan dược của nhân vật cũ không chuyển sang.
+
 Máy đăng nhập tài khoản Claude khác sẽ bị từ chối. `/tutien khoa-moi` đổi khóa và đăng xuất mọi máy khác.
 
 ## 🗣️ Claude nói theo tính cách nhân vật

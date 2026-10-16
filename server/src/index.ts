@@ -27,7 +27,7 @@ const BOARDS = { 'tu-vi': 'tuVi', chamchi: 'chamChi', tuan: 'tuan', phoenix: 'ph
 const PLAYER_ROUTES: Record<string, 'GET' | 'POST'> = {
   '/usage': 'POST', '/appearance': 'POST', '/reset': 'POST', '/me': 'GET', '/rotate-key': 'POST',
   '/status': 'GET', '/history': 'GET', '/bicanh': 'POST', '/pill': 'POST', '/bequan': 'POST', '/shop': 'POST',
-  '/profile': 'POST', '/reconcile': 'POST', '/link-code': 'POST', '/social': 'POST', '/rename': 'POST', '/inbox-clear': 'POST',
+  '/profile': 'POST', '/reconcile': 'POST', '/link-code': 'POST', '/social': 'POST', '/rename': 'POST', '/merge': 'POST', '/inbox-clear': 'POST',
 }
 
 const sha256 = async (s: string) => {
@@ -195,6 +195,23 @@ export default {
       const out = (await res.json()) as { text?: string; error?: string; notify?: { to: string; text: string } | null }
       if (out.notify) await playerStub(out.notify.to).fetch('https://do/inbox', post({ text: out.notify.text, congrats: body.op === 'congrats' }))
       return json(out, res.status)
+    }
+
+    // Gộp: nhân vật đang xác thực (cũ) chuyển hết sang nhân vật `into` (khóa của máy này đã liên kết), rồi bị xóa.
+    if (url.pathname === '/merge') {
+      const into = String(body?.into ?? '')
+      if (!NAME.test(into) || into.toLowerCase() === name.toLowerCase() || typeof body?.intoKey !== 'string') return json({ error: 'bad merge' }, 400)
+      const target = playerStub(into)
+      const ok = await target.fetch('https://do/verify', post({ keyHash: await sha256(body.intoKey), accountHash: await accountHash(req.headers.get('x-tutien-account')) }))
+      if (ok.status !== 200) return json({ error: 'unauthorized target' }, 401)
+      const exp = (await (await stub.fetch('https://do/export')).json()) as { state?: any }
+      if (!exp.state) return json({ error: 'no player' }, 404)
+      const res = await target.fetch('https://do/absorb', post({ state: exp.state }))
+      if (!res.ok) return new Response(res.body, { status: res.status, headers: { 'content-type': 'application/json' } })
+      await stub.fetch('https://do/wipe', post({}))
+      await roster.fetch('https://do/remove', post({ name }))
+      await refreshRow(target)
+      return json({ merged: name, into, ...((await res.json()) as object) })
     }
 
     // Đổi tên: chép trạng thái sang DO mới, xóa DO cũ, cập nhật bảng và quan hệ.

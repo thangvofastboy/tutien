@@ -45,6 +45,13 @@ export class RosterDO {
       await saveSocial(renameSocial(social, body.from, body.to))
       return Response.json({ ok: true })
     }
+    if (url.pathname === '/remove' && req.method === 'POST') {
+      const old = find(body.name)
+      if (old) delete rows[old.name]
+      await this.state.storage.put('rows', rows)
+      await this.state.storage.put('gone', [...gone, lc(body.name)].slice(-500))
+      return Response.json({ ok: true })
+    }
     if (url.pathname === '/releases' && req.method === 'POST') {
       await this.state.storage.put('releases', body.releases)
       return Response.json({ ok: true })

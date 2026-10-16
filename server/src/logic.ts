@@ -1,6 +1,6 @@
 // server/src/logic.ts — nghiệp vụ server thuần, test bằng node:test. Luật lấy từ hooks/rules.ts (một nguồn).
 import { tammaStep, LINH_THACH_REWARD, type TammaState } from '../../hooks/tamma.ts'
-import { applyUsage, newPlayer, effects, need, settle, REALM_NAMES, TOKENS_PER_EXP, type Player, type Extra } from '../../hooks/rules.ts'
+import { applyUsage, newPlayer, effects, need, settle, NEED, REALM_COUNT, REALM_NAMES, TOKENS_PER_EXP, type Player, type Extra } from '../../hooks/rules.ts'
 import {
   recordDay, questStep, newBadges, grantArtifact, randomArtifact, bicanhStep, holidayStep, pillExtra, pillAfter,
   inBeQuan, floorsStep, pushInbox, topFloor, weekKey, sumRange, nextDayKey, lastDays, journal, streak, bicanhProgress,
@@ -334,4 +334,43 @@ export function historyOf(st: State, now: number) {
   const days = lastDays(st.history, now, 14)
   const top = Math.max(1, ...days.map(d => d.t))
   return { days: days.map(d => ({ day: d.day, pct: Math.round((d.t / top) * 100) })), journal: journal(st.history, now) }
+}
+
+// Gộp nhân vật cũ vào nhân vật chính (cùng tài khoản): cộng EXP tích lũy, linh thạch, pháp bảo, huy hiệu, đồ,
+// token và lịch sử theo ngày. Chính giữ tên, khóa, tông, đan dược, bí cảnh. Nhân vật cũ do người gọi xóa.
+export function cumulativeExp(p: Player): number {
+  return NEED.slice(0, p.realm - 1).reduce((a, b) => a + b, 0) + p.exp
+}
+const sumMaps = (a: Record<string, number> = {}, b: Record<string, number> = {}) => {
+  const out = { ...a }
+  for (const [k, v] of Object.entries(b)) out[k] = (out[k] ?? 0) + v
+  return out
+}
+export function mergeStates(main: State, old: State): State {
+  const mp = main.player
+  const pendingTotal = mp.pending + old.player.pending
+  let realm = mp.realm
+  let exp = mp.exp + cumulativeExp(old.player) + Math.floor(pendingTotal / TOKENS_PER_EXP)
+  // Đang thiên phạt thì không nhảy bậc: EXP dừng ở trần của bậc hiện tại.
+  if (mp.trib) exp = Math.min(exp, need(realm))
+  else while (realm < REALM_COUNT && exp >= need(realm)) { exp -= need(realm); realm++ }
+  if (realm >= REALM_COUNT) exp = Math.min(exp, need(realm))
+  const history: Record<string, { t: number; e: number; q?: boolean; ev?: Record<string, number> }> = { ...(main.history ?? {}) }
+  for (const [day, d] of Object.entries(old.history ?? {})) {
+    const m = history[day]
+    history[day] = m ? { ...m, t: m.t + d.t, e: m.e + d.e, q: m.q || d.q, ev: sumMaps(m.ev, d.ev) } : d
+  }
+  return {
+    ...main,
+    player: { ...mp, realm, exp, pending: pendingTotal % TOKENS_PER_EXP, artifacts: [...mp.artifacts, ...old.player.artifacts] },
+    lifetimeTokens: main.lifetimeTokens + old.lifetimeTokens,
+    deaths: main.deaths + old.deaths,
+    resets: main.resets + old.resets,
+    weekTokens: sumMaps(main.weekTokens, old.weekTokens),
+    history,
+    linhThach: (main.linhThach ?? 0) + (old.linhThach ?? 0),
+    badges: [...new Set([...(main.badges ?? []), ...(old.badges ?? [])])],
+    inventory: [...new Set([...(main.inventory ?? []), ...(old.inventory ?? [])])],
+    inbox: pushInbox(main.inbox, `🔗 Đã gộp nhân vật ${old.name} vào đây (+${cumulativeExp(old.player)} EXP).`, Date.now()),
+  }
 }

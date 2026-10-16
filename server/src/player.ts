@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 // Durable Object một người chơi: giữ State, áp luật qua logic.ts và extras.ts.
-import { handleUsage, handleGift, handleReset, renameLock, row, recordFail, verifyDecision, settleState, statusOf, historyOf, type State } from './logic.ts'
+import { mergeStates, cumulativeExp, handleUsage, handleGift, handleReset, renameLock, row, recordFail, verifyDecision, settleState, statusOf, historyOf, type State } from './logic.ts'
 import {
   bicanhJoin, craftPill, usePill, beQuanStart, beQuanEnd, sellArtifact, buyItem, SHOP, pushInbox, reconcileStep,
   type Pill,
@@ -86,6 +86,13 @@ export class PlayerDO {
     // Đang đổi tên: chỉ cho đọc và các route của chính quá trình đổi tên.
     if (st.renaming !== undefined && st.renaming > now && req.method === 'POST' && url.pathname !== '/wipe' && url.pathname !== '/verify') {
       return bad('Nhân vật đang đổi tên, thử lại sau một phút.', 409)
+    }
+    // Gộp nhân vật cũ của cùng tài khoản vào nhân vật này.
+    if (url.pathname === '/absorb') {
+      const from = body.state as State
+      if (!st.accountHash || from?.accountHash !== st.accountHash) return bad('Hai nhân vật không cùng tài khoản Claude.', 403)
+      await save(mergeStates(st, from))
+      return ok({ ok: true, gained: cumulativeExp(from.player) })
     }
     if (url.pathname === '/export') return ok({ state: st })
     if (url.pathname === '/wipe') {

@@ -122,6 +122,8 @@ export async function runMore($: any, sub: string, rest: string[], tail: string)
     case 'dang-nhap': {
       const name = arg(0), code = arg(1)
       if (!name || !code) return 'Dùng: /tutien dang-nhap <tên> <mã> (lấy mã bằng /tutien lien-ket trên máy đang có nhân vật)'
+      const oldName = (await $.store.get('tutien.name')) as string | undefined
+      const oldKey = (await $.store.get('tutien.key')) as string | undefined
       const res = await $.http.fetch(`${SERVER}/link`, {
         method: 'POST',
         headers: {
@@ -137,7 +139,23 @@ export async function runMore($: any, sub: string, rest: string[], tail: string)
       if (!res.ok) return data.error ?? `Liên kết thất bại (${res.status}).`
       await $.store.set('tutien.key', data.key)
       await $.store.set('tutien.name', name)
-      return `🔗 Đã liên kết. Máy này dùng chung nhân vật ${name}.`
+      // Máy này đã có nhân vật riêng (khác nhân vật liên kết): gộp hết vào nhân vật chính rồi xóa nhân vật cũ.
+      let merged = ''
+      if (oldName && oldKey && oldName.toLowerCase() !== name.toLowerCase()) {
+        const m = await $.http.fetch(`${SERVER}/merge?name=${encodeURIComponent(oldName)}`, {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${oldKey}`,
+            'content-type': 'application/json',
+            'x-tutien-version': String((await $.store.get('tutien.version')) ?? ''),
+            'x-tutien-account': String((await $.store.get('tutien.account')) ?? ''),
+          },
+          body: JSON.stringify({ into: name, intoKey: data.key }),
+        }).catch(() => null)
+        const out = m?.ok ? JSON.parse(m.text || '{}') : null
+        merged = out ? `\n➕ Đã gộp nhân vật cũ ${oldName} vào ${name} (+${out.gained} EXP, cộng cả linh thạch, pháp bảo, huy hiệu); nhân vật cũ đã xóa.` : `\n⚠️ Chưa gộp được nhân vật cũ ${oldName}; gõ lại /tutien dang-nhap nếu cần.`
+      }
+      return `🔗 Đã liên kết. Máy này dùng chung nhân vật ${name}.${merged}`
     }
     case 'doi-ten': {
       if (!tail) return 'Dùng: /tutien doi-ten <tên mới>'
