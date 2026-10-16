@@ -70,7 +70,7 @@ Xong là chat bình thường với Claude. EXP tự cộng sau mỗi lượt.
 | 📝 `/tutien register <tên> <lớp> <giới>` | Ghi danh nhanh bằng một dòng |
 | 📊 `/tutien status` · `s` | Cảnh giới, tiến độ, thiên phạt |
 | 🏆 `/tutien top` · `t` | 5 bảng xếp hạng, có hàng của bạn nếu ngoài top 10 |
-| 🖼️ `/tutien-pane` | Mở pane nhân vật |
+| 🖼️ `/tutien panel` | Mở panel nhân vật |
 | ⚙️ `/tutien setting` · `caidat` | Pane cài đặt |
 | 🌐 `/tutien web` · `web stop` | Trang nhân vật trên trình duyệt (127.0.0.1:7340) |
 | 🎨 `/tutien hienthi image\|raster\|text` | Cách vẽ nhân vật trong pane |

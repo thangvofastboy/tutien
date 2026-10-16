@@ -27,11 +27,6 @@ export function compareVersions(a: string, b: string): number {
 }
 
 export const register: Register = on => {
-  on('command.run', { command: 'tutien-pane' }, async $ => {
-    await $.ui.open({ id: PANE_ID, title: 'Tu tiên' })
-    return { text: 'Đã mở pane Tu tiên.' }
-  })
-
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => renderPane($, e))
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => renderBand($, e, next))
   on('ui.render', { component: 'Pane', requestId: SETTINGS_ID }, async ($, e) => renderSettings($, e))
@@ -54,13 +49,9 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
-      name: 'tutien-pane',
-      description: 'Mở pane Tu tiên',
-    })
-    await $.command.register({
       name: 'tutien',
       description: 'Tu tien: update pulls the newest tag and reloads plugins',
-      argumentHint: 'update | autoupdate on|off',
+      argumentHint: 'panel | update | autoupdate on|off',
     })
     // Bản clone git: phiên bản theo tag. Bản cài từ marketplace (không có git): theo plugin.json.
     const described = await $.process.run(['git', 'describe', '--tags', '--abbrev=0', 'HEAD'], { cwd: $.plugin.root, timeoutMs: 30_000 }).catch(() => null)
@@ -90,6 +81,10 @@ export const register: Register = on => {
     const tail = e.args.trim().slice(sub.length).trim()
     switch (sub) {
       case 'help': case '': return { text: `${HELP}\n\nMở rộng:\n${MORE_HELP}` }
+      case 'panel': {
+        await $.ui.open({ id: PANE_ID, title: 'Tu tiên' })
+        return { text: 'Đã mở panel Tu tiên.' }
+      }
       case 'update': return { text: await runUpdate($) }
       case 'autoupdate': {
         const v = parseAutoUpdate(rest.join(' '))
