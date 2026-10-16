@@ -1,6 +1,7 @@
 // server/src/social.ts — tính năng giữa nhiều người chơi (spec 18.1, 18.2, 18.9, 20.2, 20.3, 25). Hàm thuần, lưu trong RosterDO.
 import type { Extra } from '../../hooks/rules.ts'
 import { vnDay } from '../../hooks/holidays.ts'
+import { weekKey } from './extras.ts'
 
 const DAY = 86_400_000
 export const TONG_MAX = 10
@@ -23,7 +24,7 @@ export const ROLES: Record<Role, { name: string; slots: number; minRealm: number
 }
 
 export type Tong = { name: string; owner: string; members: Record<string, Role>; createdAt: number }
-export type Invite = { from: string; to: string; kind: 'ban' | 'dao-lu'; at: number }
+export type Invite = { from: string; to: string; kind: 'ban' | 'dao-lu' | 'su-do'; at: number }
 export type Social = {
   tongs: Record<string, Tong>
   companions: Record<string, string>
@@ -32,6 +33,7 @@ export type Social = {
   seasons: Record<string, string>
   seen?: string[] // các mùa server đã có người chơi
   congrats?: Record<string, number> // "người chúc>người nhận" → lần đột phá đã chúc
+  masters?: Record<string, string> // đồ đệ (chữ thường) → sư phụ (chữ thường)
 }
 // Ảnh chụp tối thiểu của một người chơi mà các luật xã hội cần (lấy từ Row của roster).
 export type Snap = { name: string; realm: number; wk: number; lwk: number; mo: number; lmo: number; lastAt?: number; lastBreakthroughAt?: number; flagged?: boolean }
@@ -132,7 +134,69 @@ export function ctxFor(s: Social, snaps: Snap[], player: string, now: number): E
   const b = buddy ? snaps.find(r => lc(r.name) === buddy) : undefined
   if (b?.lastAt !== undefined && now - b.lastAt < DAY) x = add(x, { exp: COMPANION_BONUS })
   if (thienDaoEvent(now).active) x.eventTrib = 0.1
+  // Linh Mạch: tông thắng tông chiến tuần trước. Sư phụ chỉ điểm: đồ đệ có sư phụ.
+  if (m && lc(tongWar(s, snaps).lastWinner ?? '') === lc(m.tong.name)) x = add(x, { exp: LINH_MACH_BONUS })
+  if (s.masters?.[lc(player)]) x = add(x, { exp: DISCIPLE_BONUS })
+  const tw = teamWeek(snaps)
+  if (tw.done) { x.pillExp = (x.pillExp ?? 0) + TEAM_WEEK_BONUS; x.teamWeek = weekKey(now) }
   return x
+}
+
+// ---------- Tông chiến hằng tuần: tông có từ 2 người, tổng token tuần ----------
+export const LINH_MACH_BONUS = 0.005
+export function tongWar(s: Social, snaps: Snap[]) {
+  const rows = Object.values(s.tongs).filter(t => Object.keys(t.members).length >= 2).map(t => {
+    const ms = snaps.filter(r => Object.keys(t.members).some(k => lc(k) === lc(r.name)))
+    return { name: t.name, members: ms.length, wk: ms.reduce((a, r) => a + r.wk, 0), lwk: ms.reduce((a, r) => a + r.lwk, 0) }
+  })
+  const last = [...rows].sort((a, b) => b.lwk - a.lwk || a.name.localeCompare(b.name))[0]
+  const top = rows.length ? Math.max(1, ...rows.map(r => r.wk)) : 1
+  return {
+    lastWinner: last && last.lwk > 0 ? last.name : null,
+    standings: [...rows].sort((a, b) => b.wk - a.wk || a.name.localeCompare(b.name)).map((r, i) => ({ rank: i + 1, name: r.name, members: r.members, pct: Math.floor((r.wk / top) * 100) })),
+  }
+}
+
+// ---------- Thiên Kiếp Đồng Tâm: cả team đạt mốc token tuần ----------
+export const TEAM_WEEK_PER_PLAYER = 3_000_000
+export const TEAM_WEEK_MIN = 10_000_000
+export const TEAM_WEEK_BONUS = 0.01
+export function teamWeek(snaps: Snap[]) {
+  const target = Math.max(TEAM_WEEK_MIN, TEAM_WEEK_PER_PLAYER * snaps.filter(r => r.lwk > 0 || r.wk > 0).length)
+  const total = snaps.reduce((a, r) => a + r.wk, 0)
+  return { target, pct: Math.min(100, Math.floor((total / target) * 100)), done: total >= target }
+}
+
+// ---------- Sư đồ: đồ đệ bái sư, sư phụ nhận ----------
+export const DISCIPLE_BONUS = 0.005
+export const MASTER_MIN_REALM = 7
+export const MASTER_GAP = 3
+export const MAX_DISCIPLES = 3
+export const MASTER_REWARD = 5
+export const disciplesOf = (s: Social, master: string) => Object.entries(s.masters ?? {}).filter(([, m]) => m === lc(master)).map(([d]) => d)
+export function baiSu(s: Social, me: Snap | undefined, master: Snap | undefined, now: number): R {
+  if (!me || !master) return { error: 'Không tìm thấy vị cao nhân này.' }
+  if (lc(me.name) === lc(master.name)) return { error: 'Tự bái mình làm sư phụ? Đạo hữu tự tin quá rồi 😅' }
+  if (s.masters?.[lc(me.name)]) return { error: 'Đạo hữu đã có sư phụ. Một ngày làm thầy, cả đời làm cha, không đổi được đâu (trừ khi /tutien su-do huy).' }
+  if (master.realm < MASTER_MIN_REALM || master.realm < me.realm + MASTER_GAP) return { error: `Sư phụ cần từ bậc ${MASTER_MIN_REALM} và cao hơn đạo hữu ít nhất ${MASTER_GAP} bậc.` }
+  if (disciplesOf(s, master.name).length >= MAX_DISCIPLES) return { error: `${master.name} đã đủ ${MAX_DISCIPLES} đồ đệ, bận dạy không xuể.` }
+  const invites = [...s.invites.filter(i => !(lc(i.from) === lc(me.name) && i.kind === 'su-do')), { from: me.name, to: master.name, kind: 'su-do' as const, at: now }]
+  return { s: { ...s, invites }, text: `🙇 Đã quỳ trước động phủ ${master.name} xin bái sư. Chờ người gõ /tutien nhan-do ${me.name}.` }
+}
+export function nhanDo(s: Social, master: string, disciple: string): R {
+  const inv = s.invites.find(i => lc(i.from) === lc(disciple) && lc(i.to) === lc(master) && i.kind === 'su-do')
+  if (!inv) return { error: `${disciple} chưa xin bái sư đạo hữu.` }
+  if (s.masters?.[lc(disciple)]) return { error: `${disciple} đã có sư phụ rồi.` }
+  if (disciplesOf(s, master).length >= MAX_DISCIPLES) return { error: `Đạo hữu đã đủ ${MAX_DISCIPLES} đồ đệ.` }
+  return { s: { ...s, masters: { ...(s.masters ?? {}), [lc(disciple)]: lc(master) }, invites: s.invites.filter(i => i !== inv) }, text: `🧑‍🏫 Đã nhận ${inv.from} làm đồ đệ! Mỗi lần đồ đệ đột phá, sư phụ được ${MASTER_REWARD} linh thạch học phí.` }
+}
+export function suDoHuy(s: Social, me: string): R {
+  const masters = { ...(s.masters ?? {}) }
+  const had = !!masters[lc(me)] || disciplesOf(s, me).length > 0
+  if (!had) return { error: 'Đạo hữu chưa có sư phụ hay đồ đệ nào.' }
+  delete masters[lc(me)]
+  for (const d of disciplesOf(s, me)) delete masters[d]
+  return { s: { ...s, masters }, text: '🍂 Đã cắt đứt quan hệ sư đồ. Giang hồ hẹn ngày tái ngộ.' }
 }
 
 // Lời mời đồng hành / đạo lữ: mời rồi người kia chấp nhận. Mỗi người một bạn đồng hành, một đạo lữ.
@@ -223,6 +287,7 @@ export function renameSocial(s: Social, from: string, to: string): Social {
     ...s, tongs, companions: remap(s.companions), partners: remap(s.partners),
     invites: s.invites.map(i => ({ ...i, from: swap(i.from), to: swap(i.to) })),
     seasons: Object.fromEntries(Object.entries(s.seasons).map(([q, n]) => [q, swap(n)])),
+    masters: s.masters ? remap(s.masters) : undefined,
   }
 }
 

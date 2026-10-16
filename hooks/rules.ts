@@ -49,7 +49,8 @@ export const newPlayer = (cls: string, gender: string): Player => ({ realm: 1, e
 // Bonus ngoài lớp và pháp bảo, do server tính cho từng lượt (spec 18, 20).
 // exp, trib, death: chức vụ tông, tán tu, đồng hành — cộng chung vào trần pháp bảo.
 // pillExp, eventTrib, pillTrib, halfDeath: đan dược và sự kiện Thiên Đạo — ngoài trần.
-export type Extra = { exp?: number; trib?: number; death?: number; pillExp?: number; pillTrib?: number; eventTrib?: number; halfDeath?: boolean }
+// deathCut: công pháp Kim Cang, ngoài trần. teamWeek: tuần đang có Thiên Kiếp Đồng Tâm (chỉ để báo tin).
+export type Extra = { exp?: number; trib?: number; death?: number; pillExp?: number; pillTrib?: number; eventTrib?: number; halfDeath?: boolean; deathCut?: number; teamWeek?: string }
 
 // Hiệu lực tổng hợp: bonus lớp + pháp bảo + bonus ngoài, đã áp trần (spec mục 5, 18.1).
 export function effects(p: Player, x: Extra = {}) {
@@ -58,7 +59,7 @@ export function effects(p: Player, x: Extra = {}) {
   const expBonus = Math.min(count('e') * 0.005 + count('E') * 0.015 + (x.exp ?? 0), 0.015)
   const tribBonus = Math.min(count('t') * 0.01 + count('T') * 0.025 + (x.trib ?? 0), 0.025)
   const deathBonus = Math.min(count('d') * 0.0005 + count('D') * 0.001 + (x.death ?? 0), 0.0015)
-  const death = Math.max(0, (m.deathChance ?? DEATH_CHANCE) - deathBonus)
+  const death = Math.max(0, (m.deathChance ?? DEATH_CHANCE) - deathBonus - (x.deathCut ?? 0))
   return {
     expMult: (m.expMult ?? 1) + expBonus + (x.pillExp ?? 0),
     tribMult: (m.tribMult ?? 1) * (1 - tribBonus) * (1 - (x.pillTrib ?? 0)) * (1 - (x.eventTrib ?? 0)),

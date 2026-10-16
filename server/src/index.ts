@@ -1,6 +1,8 @@
 /// <reference types="@cloudflare/workers-types" />
 // Worker: định tuyến và xác thực khóa. Luật nằm trong logic.ts, extras.ts, social.ts và hooks/rules.ts.
 import { PlayerDO, LINK_MS } from './player.ts'
+import { LUAN_DAO_TEACH } from './features.ts'
+import { MASTER_REWARD } from './social.ts'
 import { RosterDO } from './roster.ts'
 import { CLASSES as C, GENDERS as G, REALM_NAMES } from '../../hooks/rules.ts'
 import { upcomingHolidays } from '../../hooks/holidays.ts'
@@ -28,6 +30,7 @@ const PLAYER_ROUTES: Record<string, 'GET' | 'POST'> = {
   '/usage': 'POST', '/appearance': 'POST', '/reset': 'POST', '/me': 'GET', '/rotate-key': 'POST',
   '/status': 'GET', '/history': 'GET', '/bicanh': 'POST', '/pill': 'POST', '/bequan': 'POST', '/shop': 'POST',
   '/profile': 'POST', '/reconcile': 'POST', '/link-code': 'POST', '/social': 'POST', '/rename': 'POST', '/merge': 'POST', '/inbox-clear': 'POST',
+  '/ky-ngo': 'POST', '/cong-phap': 'POST', '/luan-dao': 'POST',
 }
 
 const sha256 = async (s: string) => {
@@ -197,6 +200,26 @@ export default {
       return json(out, res.status)
     }
 
+    // Luận đạo: Worker lấy hồ sơ công khai hai bên, DO người thách đấu tung kết quả và đếm lượt.
+    if (url.pathname === '/luan-dao') {
+      const rows = await allRows()
+      const me = rows.find(r => r.name.toLowerCase() === name.toLowerCase())
+      const foe = rows.find(r => r.name.toLowerCase() === String(body?.target ?? '').toLowerCase())
+      if (!me || !foe || foe.flagged) return json({ error: `Không tìm thấy đạo hữu "${body?.target ?? ''}".` }, 404)
+      if (foe.name.toLowerCase() === name.toLowerCase()) return json({ error: '🪞 Tự đánh với bóng mình trong gương? Thắng cũng không vẻ vang gì.' }, 400)
+      const fighter = (r: Row) => ({ name: r.name, realm: r.realm, artifacts: r.artifacts, linhCan: r.linhCan })
+      const res = await stub.fetch('https://do/duel', post({ a: fighter(me), b: fighter(foe) }))
+      const out = (await res.json()) as { win?: boolean; log?: string[]; error?: string }
+      if (!res.ok) return json(out, res.status)
+      const foeStub = playerStub(foe.name)
+      await foeStub.fetch('https://do/linh-thach', post({
+        delta: out.win ? 0 : LUAN_DAO_TEACH,
+        text: out.win ? `⚔️ ${name} đến luận đạo và thắng đạo hữu. Phục thù đi: /tutien luan-dao ${name}` : `⚔️ ${name} đến luận đạo và thua đạo hữu. +${LUAN_DAO_TEACH} linh thạch phí chỉ giáo.`,
+      }))
+      await refreshRow()
+      return json({ text: (out.log ?? []).join('\n'), win: out.win })
+    }
+
     // Gộp: nhân vật đang xác thực (cũ) chuyển hết sang nhân vật `into` (khóa của máy này đã liên kết), rồi bị xóa.
     if (url.pathname === '/merge') {
       const into = String(body?.into ?? '')
@@ -256,6 +279,11 @@ export default {
         }
       }
       const events: string[] = data.events ?? []
+      // Đồ đệ đột phá: sư phụ nhận học phí.
+      if (events.includes('breakthrough')) {
+        const info = await rosterJson<{ master?: string | null }>(`/social-info?name=${encodeURIComponent(name)}`)
+        if (info.master) await playerStub(info.master).fetch('https://do/linh-thach', post({ delta: MASTER_REWARD, text: `🧑‍🏫 Đồ đệ ${name} vừa đột phá ${REALM_NAMES[data.player.realm - 1]}! +${MASTER_REWARD} linh thạch học phí.` }))
+      }
       const major = events.includes('breakthrough') && (data.player.realm - 1) % 3 === 0
       if (env.WEBHOOK_URL && (major || events.includes('death'))) {
         const text = events.includes('death')

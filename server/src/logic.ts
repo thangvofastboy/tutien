@@ -7,6 +7,7 @@ import {
   QUEST_TOKENS, PILLS, BADGES, giftStep, type Extras,
 } from './extras.ts'
 import { vnDay, holidayOn, holidayTarget } from '../../hooks/holidays.ts'
+import { featureExtra, streakStep, maybeKyNgo, congPhapOf, kyNgoView, duelCount, LINH_CAN, CONG_PHAP, type Features } from './features.ts'
 
 export const SEEN_LIMIT = 1000
 export const MAX_TOKENS_PER_TURN = 5_000_000
@@ -37,7 +38,18 @@ export type State = {
   renamedAt?: number
   renaming?: number // khóa đổi tên tới thời điểm này; trong lúc khóa, DO từ chối mọi lượt ghi
   accountHash?: string // tài khoản Claude của chủ nhân vật (băm); chỉ máy cùng tài khoản được liên kết
-} & Extras
+} & Extras & Features
+
+// Cộng các nguồn bonus: số thì cộng, cờ thì hoặc.
+export function sumExtra(...xs: Extra[]): Extra {
+  const out: Extra = {}
+  for (const x of xs) {
+    for (const k of ['exp', 'trib', 'death', 'pillExp', 'pillTrib', 'eventTrib', 'deathCut'] as const) if (x[k]) out[k] = (out[k] ?? 0) + x[k]!
+    if (x.halfDeath) out.halfDeath = true
+    if (x.teamWeek) out.teamWeek = x.teamWeek
+  }
+  return out
+}
 
 export function register(name: string, cls: string, gender: string, keyHash: string): State {
   return {
@@ -74,7 +86,7 @@ export function handleUsage(
   if (wasFlagged && p0.trib && st.lastAt !== undefined) p0 = { ...p0, trib: { ...p0.trib, deadline: p0.trib.deadline + (now - st.lastAt) } }
 
   // Bonus ngoài (tông, đồng hành, sự kiện; do Worker tính) và đan dược. Bế quan: không nhận EXP, không thiên phạt.
-  const x: Extra = { ...(body.ctx ?? {}), ...pillExtra(st.pills, now) }
+  const x: Extra = sumExtra(body.ctx ?? {}, pillExtra(st.pills, now), featureExtra(st))
   const closed = inBeQuan(st.beQuan, now)
   let { p, events }: { p: Player; events: string[] } = closed ? { p: p0, events: [] } : applyUsage(p0, tokens, now, rng, x)
   // Bị đánh dấu: EXP vẫn tính nhưng không vào thiên phạt, không lên bậc.
@@ -157,7 +169,25 @@ export function handleUsage(
     lastAt: now,
     tamma,
   }
-  return { state: next, events, duplicate: false, gainedExp }
+  // Tính năng mới: chuỗi ngày, kỳ ngộ, điểm công pháp khi đột phá, tin Thiên Kiếp Đồng Tâm.
+  const sk = streakStep(next, now, rng)
+  let after: State = { ...next, ...sk.state }
+  events.push(...sk.events)
+  if (events.includes('breakthrough')) {
+    const cp = congPhapOf(st)
+    after = { ...after, congPhap: { ...cp, points: cp.points + 1 } }
+  }
+  if (!closed && suspicion < FLAG_AT) {
+    const kn = maybeKyNgo(after, tokens, now, rng)
+    after = { ...after, kyNgo: kn.kyNgo, kyNgoDay: kn.kyNgoDay }
+    if (kn.hit) events.push('ky-ngo')
+  }
+  const tw = body.ctx?.teamWeek
+  if (tw && after.teamWeek !== tw) {
+    after = { ...after, teamWeek: tw, inbox: pushInbox(after.inbox, '☄️ Thiên Kiếp Đồng Tâm! Cả team đạt mốc tuần, mọi người nhận +1% EXP đến hết tuần.', now) }
+    events.push('thien-kiep')
+  }
+  return { state: after, events, duplicate: false, gainedExp }
 }
 
 // Quà của đạo lữ (spec 18.9): chỉ khi đang tu thường. Bế quan, thiên phạt hoặc bị đánh dấu thì không nhận,
@@ -191,7 +221,7 @@ export type Row = {
   name: string; cls: string; gender: string; realm: number; exp: number; pct: number; lifetimeTokens: number; week: number; deaths: number; artifacts: number; flagged?: boolean
   // Mở rộng (spec 18, 20, 25): tuần lịch, tháng, tháp, hoạt động gần nhất, hồ sơ công khai.
   wk?: number; lwk?: number; mo?: number; lmo?: number; floor?: number; floorAt?: number; lastAt?: number; lastBreakthroughAt?: number
-  badges?: string[]; persona?: string; equipped?: string; trib?: { pctTrib: number; deadline: number }
+  badges?: string[]; persona?: string; equipped?: string; linhCan?: string; trib?: { pctTrib: number; deadline: number }
 }
 
 // Trạng thái đã xử lý thiên phạt quá hạn tại thời điểm đọc (GET /me, bảng xếp hạng).
@@ -220,6 +250,7 @@ export function row(st0: State, now: number): Row {
     badges: st.badges ?? [],
     persona: st.persona,
     equipped: st.equipped,
+    linhCan: st.linhCan,
     trib: st.player.trib ? { pctTrib: Math.min(100, Math.floor((st.player.trib.earned / st.player.trib.required) * 100)), deadline: st.player.trib.deadline } : undefined,
   }
 }
@@ -327,6 +358,10 @@ export function statusOf(st: State, now: number) {
     congrats: st.congrats ?? 0,
     inbox: st.inbox ?? [],
     devices: 1 + (st.devices?.length ?? 0),
+    linhCan: st.linhCan ? { id: st.linhCan, ...LINH_CAN[st.linhCan], bonus: undefined } : null,
+    kyNgo: kyNgoView(st, now),
+    congPhap: (() => { const cp = congPhapOf(st); return { points: cp.points, learned: Object.entries(cp.learned).map(([id, n]) => ({ id, n, name: CONG_PHAP[id]?.name ?? id, icon: CONG_PHAP[id]?.icon ?? '📖' })) } })(),
+    luanDao: duelCount(st, now),
   }
 }
 
