@@ -93,6 +93,15 @@ Xong là chat bình thường với Claude. EXP tự cộng sau mỗi lượt.
 | 🧘 `/tutien be-quan <ngày>` · `be-quan xuat-quan` | Bế quan tối đa 14 ngày |
 | 🛍️ `/tutien cho` · `mua <món>` · `trang-bi <món>` · `doi-phap-bao <loại>` | Chợ phường thị |
 | 🔗 `/tutien lien-ket` · `dang-nhap <tên> <mã>` | Dùng chung nhân vật trên máy khác |
+| 🎲 `/tutien ky-ngo [a\|b]` | Xem và chọn kỳ ngộ (cũng bấm được trong panel) |
+| 🌈 `/tutien linh-can` | Linh căn ngũ hành theo phong cách code |
+| ⚔️ `/tutien luan-dao <tên>` | Luận đạo với đạo hữu khác, 3 trận mỗi ngày |
+| 🔥 `/tutien chuoi` | Chuỗi ngày tu luyện và mốc thưởng |
+| 📖 `/tutien cong-phap [hoc <id> \| tay-tuy]` | Cây công pháp |
+| 🏯 `/tutien tong-chien` | Tông chiến tuần, Linh Mạch, Thiên Kiếp Đồng Tâm |
+| 🧑‍🏫 `/tutien bai-su <tên>` · `nhan-do <tên>` · `su-do [huy]` | Sư đồ |
+| 🪪 `/tutien the` | Thẻ khoe nhân vật (file SVG trong thư mục đang làm việc) |
+| 📜 `/tutien truyen-tuan` | Truyện tu tiên tuần này, do Claude chấp bút |
 | ✍️ `/tutien doi-ten <tên mới>` | Đổi tên nhân vật (7 ngày một lần) |
 | ❓ `/tutien help` | Danh sách lệnh |
 
@@ -152,7 +161,20 @@ Thỉnh thoảng sau một lượt chat, Tâm Ma hiện ra: 2% lúc bình thư�
 - 🎊 **Bí cảnh lễ hội**: Tết, Giỗ Tổ, 30/4–1/5, 19/5, 17/6, 27/7, Quốc khánh. Tổng 3 triệu × số ngày, không cần ghi danh.
 - ⚗️ **Đan dược**: Hộ Thể (nửa tỷ lệ chết lần đột phá kế), Tốc Tu (+10% EXP 24 giờ), Thông Thiên (−10% thiên phạt kế).
 - 🗼 **Tháp Thử Luyện**: tầng k ứng với bậc 3k+1, có bảng xếp hạng riêng.
-- 🏅 **8 huy hiệu**, 💎 **linh thạch** từ Tâm Ma và pháp bảo vượt trần, đổi lấy đồ trang trí ở chợ.
+- 🏅 **11 huy hiệu**, 💎 **linh thạch** từ Tâm Ma và pháp bảo vượt trần, đổi lấy đồ trang trí ở chợ.
+
+## 🎲 Cơ duyên và đồng môn
+
+- 🌈 **Linh căn**: mod đếm loại việc đạo hữu làm qua mỗi lần Claude sửa file hay chạy lệnh (chỉ đếm đuôi file, không đọc nội dung). Sau 20 lần, linh căn thức tỉnh: 🗡️ Kim (code: +0,5% EXP), 💧 Thủy (Python, dữ liệu: −1% token thiên phạt), 🔥 Hỏa (terminal: kỳ ngộ thường hơn), ⛰️ Thổ (test: −0,05% tử vong), 🌿 Mộc (tài liệu, giao diện: linh thạch kỳ ngộ ×1,5).
+- 🎲 **Kỳ ngộ**: sau mỗi lượt có ~3% gặp chuyện lạ (tối đa 3 lần mỗi ngày): tiền bối hỏi cách thoát Vim, ảo cảnh merge conflict, yêu thú bug production… Chọn 🅰️ hoặc 🅱️ ngay trong panel. Có thể được EXP, linh thạch, pháp bảo, đan dược, hoặc mất chút linh thạch. Kỳ ngộ tan sau 24 giờ.
+- ⚔️ **Luận đạo**: thách đấu đạo hữu khác. Sức mạnh theo bậc, pháp bảo, may mắn, và ngũ hành tương khắc. Thắng +5 linh thạch, thua không mất gì; người bị thách thua thì được 2 linh thạch phí chỉ giáo.
+- 🔥 **Chuỗi ngày**: 3 ngày +5 linh thạch, 7 ngày +1 pháp bảo, 14 ngày +20 linh thạch, 30 ngày +1 pháp bảo hiếm, 100 ngày huy hiệu Đạo Tâm Bất Diệt. Đứt chuỗi thì các mốc mở lại.
+- 📖 **Công pháp**: mỗi lần đột phá được 1 điểm (người chơi cũ nhận sẵn điểm theo bậc). 5 công pháp, mỗi cái 3 tầng. Tẩy tủy hoàn điểm, tốn 20 linh thạch.
+- 🏯 **Tông chiến**: tông có từ 2 người thi tổng token tuần. Tông thắng tuần trước giữ ⛲ Linh Mạch: cả tông +0,5% EXP.
+- ☄️ **Thiên Kiếp Đồng Tâm**: cả team đạt mốc token tuần (3 triệu mỗi người, ít nhất 10 triệu) thì ai cũng +1% EXP đến hết tuần.
+- 🧑‍🏫 **Sư đồ**: bái sư người từ bậc 7, cao hơn mình 3 bậc. Đồ đệ +0,5% EXP; mỗi lần đồ đệ đột phá, sư phụ +5 linh thạch. Mỗi sư phụ tối đa 3 đồ đệ.
+- 🪪 **Thẻ khoe**: `/tutien the` in một thẻ SVG có ảnh, cảnh giới, linh căn, chuỗi ngày; hiện luôn trong panel.
+- 📜 **Truyện tuần**: Claude (Haiku) viết một đoạn truyện hài về tuần tu luyện của đạo hữu, theo tính cách nhân vật. Mỗi tuần lưu một bản; `/tutien truyen-tuan moi` để viết lại.
 
 ## 🔗 Dùng trên nhiều máy
 

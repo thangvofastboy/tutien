@@ -28,6 +28,10 @@ export type Status = {
   congrats: number
   devices: number
   equipped: string | null
+  linhCan?: { id: string; name: string; icon: string } | null
+  kyNgo?: { title: string } | null
+  congPhap?: { points: number }
+  luanDao?: { wins: number; losses: number }
 }
 export type SocialInfo = {
   tong: { name: string; role: string; weekPct: number; paused: boolean } | null
@@ -36,6 +40,9 @@ export type SocialInfo = {
   invites: { from: string; kind: string }[]
   title: string | null
   event: { active: boolean; name: string; desc: string }
+  master?: string | null
+  disciples?: (string | null)[]
+  linhMach?: boolean
 }
 
 const ART_NAMES: Record<string, string> = { e: 'Tụ Linh Bình', t: 'Phá Kiếp Phù', d: 'Hộ Mệnh Ngọc', E: 'Tụ Linh Bình Hiếm', T: 'Phá Kiếp Phù Hiếm', D: 'Hộ Mệnh Ngọc Hiếm' }
@@ -57,7 +64,14 @@ export function statusLines(name: string, p: Player, s: Status | undefined, soc:
   else out.push('🍃 Tán tu: +0,5% EXP')
   if (soc?.companion) out.push(`🤝 Bạn đồng hành: ${soc.companion}`)
   if (soc?.partner) out.push(`💞 Đạo lữ: ${soc.partner}`)
-  for (const i of soc?.invites ?? []) out.push(`💌 ${i.from} mời làm ${i.kind === 'ban' ? 'bạn đồng hành' : 'đạo lữ'}: /tutien ${i.kind} chap-nhan ${i.from}`)
+  for (const i of soc?.invites ?? []) out.push(i.kind === 'su-do' ? `🙇 ${i.from} xin bái sư: /tutien nhan-do ${i.from}` : `💌 ${i.from} mời làm ${i.kind === 'ban' ? 'bạn đồng hành' : 'đạo lữ'}: /tutien ${i.kind} chap-nhan ${i.from}`)
+  if (soc?.linhMach) out.push('⛲ Tông đang giữ Linh Mạch: +0,5% EXP')
+  if (soc?.master) out.push(`🧑‍🏫 Sư phụ: ${soc.master} (+0,5% EXP)`)
+  if (soc?.disciples?.length) out.push(`🧑‍🎓 Đồ đệ: ${soc.disciples.join(', ')}`)
+  if (s.linhCan) out.push(`🌈 ${s.linhCan.icon} ${s.linhCan.name}`)
+  if (s.streak) out.push(`🔥 Chuỗi tu luyện ${s.streak} ngày liên tục`)
+  if (s.congPhap?.points) out.push(`📖 Còn ${s.congPhap.points} điểm công pháp: /tutien cong-phap`)
+  if (s.kyNgo) out.push(`🎲 Kỳ ngộ đang chờ: ${s.kyNgo.title} → /tutien ky-ngo`)
   if (soc?.event.active) out.push(`☯️ ${soc.event.name}: ${soc.event.desc}`)
   if (s.artifacts.length) out.push(`🎁 Pháp bảo: ${artifactNames(s.artifacts)}`)
   if (s.pills.bag.length || s.pills.active.length) out.push(`⚗️ Đan: ${[...s.pills.active.map(x => `${x} (đang dùng)`), ...s.pills.bag].join(', ')}`)

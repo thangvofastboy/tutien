@@ -5,11 +5,12 @@ import { callServer, SERVER } from './api'
 import { CLASSES, GENDERS } from './rules'
 import { HELP, tokens, parseRegister, parseReset, formatTop } from './commands'
 import { statusText } from './display'
-import { refreshPane, renderPane, renderBand, renderSettings, renderStart, startWizard, submitWizardName, logGreeting, registerPlayer, setPlayer, setAvatar, isPngBase64, PANE_ID, SETTINGS_ID, START_ID } from './pane'
+import { refreshPane, renderPane, renderBand, renderSettings, renderStart, startWizard, submitWizardName, logGreeting, registerPlayer, setPlayer, setAvatar, isPngBase64, applyEvents, showOut, PANE_ID, SETTINGS_ID, START_ID } from './pane'
 import { PERSONAS, personaById, buildPersonaPrompt, parsePersonaLines } from './persona'
 import { PROLOGUE, unlockedChapters } from './story'
 import { startWeb, stopWeb } from './web'
 import { runMore, statusText as fullStatus, extraBoards, MORE_HELP } from './more'
+import { runFeatures, trackTool, FEATURE_HELP } from './features'
 import { loadAccount, sessionNotes, breakReminder, reconcile, personaSection } from './session'
 
 const USAGE = 'Usage: /tutien update | autoupdate on|off'
@@ -37,6 +38,14 @@ export const register: Register = on => {
     const out = await next(e)
     const text = await personaSection($)
     return text ? { sections: [...out.sections, { id: 'tutien:persona', text, scope: 'session' as const }] } : out
+  })
+
+  // Linh căn: đếm loại việc qua từng lần gọi tool (đuôi file hoặc lệnh shell); chạy nền, không chặn tool.
+  on('tool.call', async ($, e, next) => {
+    const result = await next(e)
+    const { tool, ...input } = e as any
+    void trackTool($, String(tool), input).catch(() => null)
+    return result
   })
 
   on('turn.complete', async ($, e, next) => {
@@ -76,11 +85,15 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'tutien' }, async ($, e) => {
-    const [sub = '', ...rest] = tokens(e.args)
-    const tail = e.args.trim().slice(sub.length).trim()
+  on('command.run', { command: 'tutien' }, async ($, e) => runTutien($, e.args))
+}
+
+// /tutien <lệnh>: dùng chung cho ô nhập lệnh và các nút trong panel.
+export async function runTutien($: any, args: string): Promise<{ text: string }> {
+    const [sub = '', ...rest] = tokens(args)
+    const tail = args.trim().slice(sub.length).trim()
     switch (sub) {
-      case 'help': case '': return { text: `${HELP}\n\nMở rộng:\n${MORE_HELP}` }
+      case 'help': case '': return { text: `${HELP}\n\nMở rộng:\n${MORE_HELP}\n\nCơ duyên và đồng môn:\n${FEATURE_HELP}` }
       case 'panel': {
         await $.ui.open({ id: PANE_ID, title: 'Tu tiên' })
         return { text: 'Đã mở panel Tu tiên.' }
@@ -196,9 +209,18 @@ export const register: Register = on => {
         sections.push(...(await extraBoards($, me, (await $.store.get('tutien.realm')) as number | undefined)))
         return { text: sections.join('\n\n') }
       }
-      default: return { text: (await runMore($, sub, rest, tail)) ?? `${HELP}\n\nMở rộng:\n${MORE_HELP}` }
+      default: {
+        const f = await runFeatures($, sub, rest, tail)
+        if (f) {
+          if (f.player) await setPlayer($, f.player)
+          if (f.events?.length) await applyEvents($, f.events)
+          if (f.card) await showOut($, '🪪 Thẻ Tu Tiên', f.text, f.card)
+          if (sub.startsWith('ky') || sub.startsWith('cong')) void refreshPane($).catch(() => null)
+          return { text: f.text }
+        }
+        return { text: (await runMore($, sub, rest, tail)) ?? `${HELP}\n\nMở rộng:\n${MORE_HELP}\n\nCơ duyên và đồng môn:\n${FEATURE_HELP}` }
+      }
     }
-  })
 }
 
 export async function runUpdate($: any): Promise<string> {

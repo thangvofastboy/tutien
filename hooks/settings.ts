@@ -37,6 +37,13 @@ export const COMMAND_GROUPS: CommandGroup[] = [
   { title: '📚 Khám phá', color: '#7ee787', items: [
     { arg: 'truyen', label: '📖 Cốt truyện' }, { arg: 'thu-vien', label: '🗃️ Thư viện' },
     { arg: 'bicanh', label: '🌀 Bí cảnh' }, { arg: 'cho', label: '🛒 Chợ' }] },
+  { title: '🎲 Cơ Duyên', color: '#56d4dd', items: [
+    { arg: 'ky-ngo', label: '🎲 Kỳ ngộ' }, { arg: 'chuoi', label: '🔥 Chuỗi ngày' },
+    { arg: 'linh-can', label: '🌈 Linh căn' }, { arg: 'cong-phap', label: '📖 Công pháp' },
+    { arg: 'truyen-tuan', label: '📜 Truyện tuần' }] },
+  { title: '⚔️ Đồng Môn', color: '#ff7b72', items: [
+    { arg: 'luan-dao', label: '⚔️ Luận đạo' }, { arg: 'tong-chien', label: '🏯 Tông chiến' },
+    { arg: 'su-do', label: '🧑‍🏫 Sư đồ' }, { arg: 'the', label: '🪪 Thẻ khoe' }] },
   { title: '🚀 Mở', color: '#ffa657', items: [
     { arg: 'panel', label: '🖼️ Panel nhân vật' }, { arg: 'start', label: '🌱 Bắt đầu' },
     { arg: 'web', label: '🌐 Mini web' }, { arg: 'help', label: '❓ Trợ giúp' }] },

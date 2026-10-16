@@ -30,6 +30,13 @@ const FORTUNES = [
   'Đọc log trước khi đoán, thiên đạo sẽ mỉm cười.',
 ]
 
+const KY_NGO_TEASE = [
+  'Nghe đồn có tiền bối đang tìm người biết thoát Vim...',
+  'Một cây linh thảo vừa mọc cạnh node_modules.',
+  'Trời đất rung chuyển, có thứ gì đó vừa rơi xuống từ Stack Overflow.',
+  'Có mùi đan dược thoang thoảng... hay là mùi laptop quá nhiệt?',
+]
+
 const at = <T>(list: readonly T[], seed: number) => list[Math.abs(Math.floor(seed)) % list.length]
 
 // Lời chào mở phiên: 4 dòng, chọn mẹo và quẻ theo ngày để cả ngày giống nhau.
@@ -54,6 +61,12 @@ export function eventLines(ev: string, seed: number): string[] {
     case 'tamma': return ['👹 Tâm Ma Trễ Deadline Xuất Hiện! Dùng đủ token trong 2 giờ để xua đuổi nó.', `   "${at(LINES.tamma, seed)}"`]
     case 'tamma-defeated': return ['🗡️ Xua Đuổi Tâm Ma Thành Công! +5 linh thạch.', `   "${at(LINES.tammaDefeated, seed)}"`]
     case 'tamma-failed': return ['😈 Tâm Ma Cười Lớn Rồi Biến Mất. Đạo hữu mất một chút tiến độ.', `   "${at(LINES.tammaLeaves, seed)}"`]
-    default: return []
+    case 'ky-ngo': return ['🎲 Kỳ Ngộ Xuất Hiện! Có chuyện lạ trên đường tu, mở panel hoặc gõ /tutien ky-ngo để xem.', `   "${at(KY_NGO_TEASE, seed)}"`]
+    case 'thien-kiep': return ['☄️ Thiên Kiếp Đồng Tâm! Cả team đã đạt mốc tuần, ai cũng +1% EXP đến hết tuần. Đồng môn đỉnh của chóp!']
+    case 'artifact-converted': return ['💎 Pháp Bảo Đã Chạm Trần, Hóa Thành Linh Thạch. Túi đồ đầy quá rồi đạo hữu ơi.']
+    default:
+      if (ev.startsWith('streak:')) return [`🔥 Chuỗi ${ev.slice(7)} Ngày Liên Tục! Phần thưởng đã gửi vào hộp thư. Lò đan vẫn rực lửa!`]
+      if (ev.startsWith('badge:')) return [`🏅 Thành Tựu Mới Mở Khóa! Xem ở /tutien thu-vien.`]
+      return []
   }
 }

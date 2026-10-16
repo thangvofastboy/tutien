@@ -13,6 +13,8 @@ import { CLASSES, GENDERS } from './rules'
 import { PERSONAS, personaById } from './persona'
 import { webRunning, writeWebState } from './web'
 import { greetingLines, eventLines } from './chat'
+import { lineColor } from './features'
+import { runTutien } from './register'
 
 const PANE = 'tu-tien'
 export const me = atom({ plugin: 'tutien', key: 'me' } as const, undefined as Player | undefined)
@@ -22,10 +24,18 @@ const tick = atom({ plugin: 'tutien', key: 'tick' } as const, 0)
 export type BoardRow = { rank: number; name: string; cls: string; realm: number; score: number }
 const board = atom({ plugin: 'tutien', key: 'board' } as const, [] as BoardRow[])
 // Nhiệm vụ ngày, bí cảnh, Tâm Ma, tông (spec 18.4): dòng phụ trong pane.
-type Info = { quest: number; bicanh: string | null; tamma: number | null; tong: string | null }
+type Info = {
+  quest: number; bicanh: string | null; tamma: number | null; tong: string | null
+  streak?: number; linhCan?: { name: string; icon: string } | null; cpPoints?: number
+  kyNgo?: { title: string; desc: string; a: string; b: string } | null
+}
 const info = atom({ plugin: 'tutien', key: 'info' } as const, null as Info | null)
 // Kết quả nút lệnh nhanh: hiện ngay trong panel (không chỉ trong khung chat).
-const quickOut = atom({ plugin: 'tutien', key: 'quickOut' } as const, null as { title: string; text: string } | null)
+const quickOut = atom({ plugin: 'tutien', key: 'quickOut' } as const, null as { title: string; text: string; card?: string } | null)
+// Hiện kết quả trong thẻ của panel và pane Cài đặt; `card` là SVG (thẻ khoe nhân vật).
+export async function showOut($: any, title: string, text: string, card?: string): Promise<void> {
+  await update($, quickOut, () => ({ title, text, card }))
+}
 const settingsTick = atom({ plugin: 'tutien', key: 'settingsTick' } as const, 0)
 const wizard = atom({ plugin: 'tutien', key: 'wizard' } as const, { step: 0 } as Wizard)
 const wizardError = atom({ plugin: 'tutien', key: 'wizardError' } as const, null as string | null)
@@ -192,7 +202,11 @@ export async function refreshPane($: any): Promise<void> {
   ])
   if (res?.ok && res.data?.status) {
     const s = res.data.status
-    await update($, info, () => ({ quest: s.quest?.pct ?? 0, bicanh: s.bicanh ?? null, tamma: s.tamma?.pct ?? null, tong: res.data!.social?.tong?.name ?? null }))
+    await update($, info, () => ({
+      quest: s.quest?.pct ?? 0, bicanh: s.bicanh ?? null, tamma: s.tamma?.pct ?? null, tong: res.data!.social?.tong?.name ?? null,
+      streak: s.streak ?? 0, linhCan: s.linhCan ? { name: s.linhCan.name, icon: s.linhCan.icon } : null, cpPoints: s.congPhap?.points ?? 0,
+      kyNgo: s.kyNgo ? { title: s.kyNgo.title, desc: s.kyNgo.desc, a: s.kyNgo.a, b: s.kyNgo.b } : null,
+    }))
   }
   if (top?.ok) {
     let rows: BoardRow[] = []
@@ -227,6 +241,9 @@ const QUICK = [
   { arg: 'top', label: '🏆 Bảng xếp hạng' },
   { arg: 'history', label: '📊 Lịch sử' },
   { arg: 'team', label: '👥 Team' },
+  { arg: 'chuoi', label: '🔥 Chuỗi ngày' },
+  { arg: 'cong-phap', label: '📖 Công pháp' },
+  { arg: 'the', label: '🪪 Thẻ khoe' },
   { arg: 'setting', label: '⚙️ Cài đặt' },
 ]
 function runQuick($: any, arg: string, label?: string) {
@@ -234,10 +251,26 @@ function runQuick($: any, arg: string, label?: string) {
     const title = label ?? QUICK.find(q => q.arg === arg)?.label ?? arg
     const opens = OPEN_COMMANDS.includes(arg)
     if (!opens) await update($, quickOut, () => ({ title, text: '⏳ Đang tải…' }))
-    const r = await $.command.run({ command: 'tutien', args: arg }).catch(() => undefined)
+    // Gọi thẳng hàm xử lý /tutien, không đi vòng qua $.command.run.
+    const r = await runTutien($, arg).catch(() => undefined)
     if (opens) return // mở pane khác
-    await update($, quickOut, () => ({ title, text: String(r?.text ?? '').trim() || 'Không có dữ liệu.' }))
+    const text = String(r?.text ?? '').trim() || 'Không có dữ liệu.'
+    // Lệnh đã tự hiện thẻ (kèm ảnh) thì giữ nguyên.
+    await update($, quickOut, (cur: any) => (cur?.card && cur.text === text ? cur : { title, text }))
   })()
+}
+
+// Thẻ kết quả: mỗi dòng tô màu theo icon đầu dòng, có ảnh nếu là thẻ khoe.
+function outCard(els: any, $: any, out: { title: string; text: string; card?: string }, size?: string) {
+  const { Box, Text, Button, Svg } = els
+  return (
+    <Box key="out" flexDirection="column" borderStyle="round" borderColor="#79c0ff" paddingX={1}>
+      <Text size={size} bold color="#79c0ff">{out.title}</Text>
+      {out.card && Svg ? <Svg key="card" alt={out.title} width={360} height={192} source={out.card} /> : null}
+      {out.text.split('\n').map((t, i) => <Text key={`o-${i}`} size={size} color={lineColor(t)}>{t || ' '}</Text>)}
+      {Button ? <Button key="out-close" onPress={() => void update($, quickOut, () => null)}>✖ Đóng</Button> : null}
+    </Box>
+  )
 }
 
 export async function renderPane($: any, e: any) {
@@ -319,6 +352,13 @@ export async function renderPane($: any, e: any) {
       {card('tu', '☯ Tu Luyện', th.title, [
         <Text key="st" size={sz.body} color={toneOf(p, now)}>{stateIcon(p)} {statusText(p, now)}</Text>,
         <Text key="ln" size={sz.body} italic color={th.quote}>💬 {line}</Text>,
+        ...(inf && (inf.streak || inf.linhCan || inf.cpPoints) ? [
+          <Box key="ft" flexDirection="row" flexWrap="wrap" gap={1}>
+            {inf.streak ? <Text size={sz.body} color="#ffa657">{inf.streak >= 7 ? '🔥🔥' : '🔥'} {inf.streak} ngày</Text> : null}
+            {inf.linhCan ? <Text size={sz.body} color="#d2a8ff">{inf.linhCan.icon} {inf.linhCan.name}</Text> : null}
+            {inf.cpPoints ? <Text size={sz.body} color="#ffd54f">📖 {inf.cpPoints} điểm công pháp</Text> : null}
+          </Box>,
+        ] : []),
         <Box key="mt" flexDirection="row">
           <Text size={sz.body} dimColor>📈 Tiến độ bậc: </Text>
           <Text size={sz.body} color={rc}>{m.filled}</Text>
@@ -330,10 +370,17 @@ export async function renderPane($: any, e: any) {
       {!compact && lines.length ? card('bxh', '🏆 Bảng Tu Vi', '#ffd54f', lines.map(l => (
         <Text key={`b-${l.text}`} size={sz.body} color={l.mine ? th.mine : rankColor(l.rank)} bold={l.mine || l.rank <= 3}>{l.text}</Text>
       ))) : null}
-      {out ? card('out', out.title, '#79c0ff', [
-        ...out.text.split('\n').map((t, i) => <Text key={`o-${i}`} size={sz.body}>{t || ' '}</Text>),
-        ...(Button ? [<Button key="out-close" onPress={() => void update($, quickOut, () => null)}>✖ Đóng</Button>] : []),
+      {inf?.kyNgo ? card('kn', '🎲 Kỳ Ngộ', '#56d4dd', [
+        <Text key="kt" size={sz.body} bold color="#56d4dd">{inf.kyNgo.title}</Text>,
+        <Text key="kd" size={sz.body} italic>{inf.kyNgo.desc}</Text>,
+        Button ? (
+          <Box key="kb" flexDirection="row" flexWrap="wrap" gap={1}>
+            <Button key="kyngo:a" onPress={() => runQuick($, 'ky-ngo a', inf.kyNgo!.title)}>🅰️ {inf.kyNgo.a}</Button>
+            <Button key="kyngo:b" onPress={() => runQuick($, 'ky-ngo b', inf.kyNgo!.title)}>🅱️ {inf.kyNgo.b}</Button>
+          </Box>
+        ) : <Text key="kh" size={sz.body} dimColor>/tutien ky-ngo a · /tutien ky-ngo b</Text>,
       ]) : null}
+      {out ? outCard($.ui.resolve(e), $, out, sz.body) : null}
       {Button ? (
         <Box flexDirection="row" flexWrap="wrap" gap={1}>
           {QUICK.map(q => <Button key={`quick:${q.arg}`} onPress={() => runQuick($, q.arg)}>{q.label}</Button>)}
@@ -407,13 +454,7 @@ export async function renderSettings($: any, e: any) {
           </Box>
         </Box>
       )) : null}
-      {out ? (
-        <Box key="cmd-out" flexDirection="column" borderStyle="round" borderColor="#79c0ff" paddingX={1}>
-          <Text bold color="#79c0ff">{out.title}</Text>
-          {out.text.split('\n').map((t, i) => <Text key={`o-${i}`}>{t || ' '}</Text>)}
-          {Button ? <Button key="cmd-close" onPress={() => void update($, quickOut, () => null)}>✖ Đóng</Button> : null}
-        </Box>
-      ) : null}
+      {out ? outCard(els, $, out) : null}
       {SETTINGS.map(s => settingChoice(els, s, {
           value: values[s.key],
           onSelect: (v: string) => {
