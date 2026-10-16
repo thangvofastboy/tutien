@@ -97,6 +97,20 @@ export async function logGreeting($: any): Promise<void> {
 export const svgSprite = (b64: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="192" height="192"><image href="data:image/png;base64,${b64}" width="96" height="96" style="image-rendering:pixelated"/></svg>`
 
+// Ảnh nhân vật tự chọn (/tutien hinh): dùng chung mọi bậc, chỉ lưu trên máy này.
+// Svg dùng base64 lưu trong store; chế độ Image đọc lại file gốc nếu còn.
+export const AVATAR_MAX_B64 = 1_400_000
+export const isPngBase64 = (b64: unknown): b64 is string => typeof b64 === 'string' && b64.startsWith('iVBORw0KGgo') && b64.length <= AVATAR_MAX_B64
+async function avatarOf($: any): Promise<{ b64: string; file: string | null } | null> {
+  const [b64, file] = await Promise.all([$.store.get('tutien.avatar'), $.store.get('tutien.avatarFile')])
+  return isPngBase64(b64) ? { b64, file: typeof file === 'string' ? file : null } : null
+}
+export async function setAvatar($: any, b64: string | null, file: string | null): Promise<void> {
+  await $.store.set('tutien.avatar', b64)
+  await $.store.set('tutien.avatarFile', file)
+  await update($, settingsTick, (n: number) => n + 1)
+}
+
 export const realmImage = (root: string, p: Player) =>
   `${root}/assets/realms/${p.cls}/${p.gender}/${String(p.realm).padStart(2, '0')}.png`
 
@@ -247,15 +261,18 @@ export async function renderPane($: any, e: any) {
     Math.floor(Date.now() / 60_000),
   )
   const mode = displayMode(display)
+  const custom = await avatarOf($)
   let art: any = <Text>{alt}</Text>
   if (mode !== 'text' && e.surface !== 'terminal' && Svg) {
     // Claude Code Desktop và app điện thoại không vẽ Raster/Image (chỉ là fragment rỗng): vẽ ảnh PNG qua Svg.
     const file = realmImage($.plugin.root, p)
-    const b64 = await cachedRead(`png:${file}`, () => $.fs.read(file, { as: 'bytes' }).then((x: any) => x?.base64 ?? null, () => null))
+    const b64 = custom?.b64 ?? await cachedRead(`png:${file}`, () => $.fs.read(file, { as: 'bytes' }).then((x: any) => x?.base64 ?? null, () => null))
     if (b64) art = <Svg key="realm" alt={alt} width={192} height={192} source={svgSprite(b64)} />
-  } else if (mode === 'image' && Image) {
-    const file = realmImage($.plugin.root, p)
-    if (await cachedRead(`stat:${file}`, () => $.fs.stat(file).then(() => 'ok', () => null))) {
+  } else if ((mode === 'image' || (mode === 'raster' && custom?.file)) && Image) {
+    // Ảnh tự chọn không có bản ô màu, nên terminal có Image thì vẽ ảnh thật.
+    const own = custom?.file && await $.fs.stat(custom.file).then(() => true, () => false) ? custom.file : null
+    const file = own ?? realmImage($.plugin.root, p)
+    if (own || await cachedRead(`stat:${file}`, () => $.fs.stat(file).then(() => 'ok', () => null))) {
       art = <Image key="realm" source={{ file, format: 'png' }} columns={24} rows={12} alt={alt} />
     }
   } else if (mode === 'raster' && Raster) {

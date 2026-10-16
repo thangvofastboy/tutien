@@ -5,7 +5,7 @@ import { callServer, SERVER } from './api'
 import { CLASSES, GENDERS } from './rules'
 import { HELP, tokens, parseRegister, parseReset, formatTop } from './commands'
 import { statusText } from './display'
-import { refreshPane, renderPane, renderBand, renderSettings, renderStart, startWizard, submitWizardName, logGreeting, registerPlayer, setPlayer, PANE_ID, SETTINGS_ID, START_ID } from './pane'
+import { refreshPane, renderPane, renderBand, renderSettings, renderStart, startWizard, submitWizardName, logGreeting, registerPlayer, setPlayer, setAvatar, isPngBase64, PANE_ID, SETTINGS_ID, START_ID } from './pane'
 import { PERSONAS, personaById, buildPersonaPrompt, parsePersonaLines } from './persona'
 import { PROLOGUE, unlockedChapters } from './story'
 import { startWeb, stopWeb } from './web'
@@ -158,6 +158,17 @@ export const register: Register = on => {
         const out = await startWeb($, res?.ok ? res.data?.player : undefined)
         if (out.ok) await refreshPane($) // ghi lại trạng thái kèm bảng xếp hạng cho trang
         return { text: out.text }
+      }
+      case 'hinh': {
+        if (!tail) return { text: 'Dùng: /tutien hinh <đường dẫn file PNG> | /tutien hinh xoa\nẢnh dùng chung mọi bậc, chỉ lưu trên máy này (tối đa ~1 MB).' }
+        if (tail === 'xoa') { await setAvatar($, null, null); return { text: 'Đã bỏ ảnh tự chọn, dùng lại ảnh mặc định.' } }
+        const file = tail.replace(/^"|"$/g, '')
+        const got = await $.fs.read(file, { as: 'bytes' }).catch(() => null)
+        const b64 = (got as any)?.base64
+        if (!b64) return { text: `Không đọc được file: ${file}` }
+        if (!isPngBase64(b64)) return { text: 'Chỉ nhận file PNG, tối đa khoảng 1 MB.' }
+        await setAvatar($, b64, file)
+        return { text: 'Đã đặt ảnh nhân vật (mọi bậc). Mở lại panel nếu chưa thấy đổi.' }
       }
       case 'setting': case 'settings': case 'caidat': {
         await $.ui.open({ id: SETTINGS_ID, title: 'Cài đặt Tu Tiên' })

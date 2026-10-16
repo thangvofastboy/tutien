@@ -93,3 +93,16 @@ test('chế độ gọn: pane ẩn thẻ nhiệm vụ và bảng xếp hạng, v
   expect(await ui.find({ type: 'Text', text: /Nhiệm Vụ/ })).toBeUndefined()
   await ui.unmount()
 })
+
+test('/tutien hinh: ảnh tự chọn dùng chung mọi bậc, xoa thì về ảnh mặc định', async ($, on) => {
+  await withPlayer($, on)
+  on('fs.read', async (_$: any, e: any) => ({ value: { base64: String(e.path).endsWith('avt.png') ? 'iVBORw0KGgoAVT' : 'iVBORw0KGgoDEF' } }) as any)
+  expect((await $.command.run(RUN('hinh /tmp/avt.png'))).text).toContain('Đã đặt ảnh')
+  let ui = await $.ui.mount({ plugin: 'tutien', surface: 'desktop', component: 'Pane', requestId: 'tu-tien', props: { title: 'Tu tiên', bodyColumns: 80 } } as any)
+  expect(String((await ui.find({ type: 'Svg' }))?.props.source)).toContain('iVBORw0KGgoAVT')
+  await ui.unmount()
+  expect((await $.command.run(RUN('hinh xoa'))).text).toContain('mặc định')
+  ui = await $.ui.mount({ plugin: 'tutien', surface: 'desktop', component: 'Pane', requestId: 'tu-tien', props: { title: 'Tu tiên', bodyColumns: 80 } } as any)
+  expect(String((await ui.find({ type: 'Svg' }))?.props.source)).toContain('iVBORw0KGgoDEF')
+  await ui.unmount()
+})
