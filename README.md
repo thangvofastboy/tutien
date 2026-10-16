@@ -158,7 +158,7 @@ Thỉnh thoảng sau một lượt chat, Tâm Ma hiện ra: 2% lúc bình thư�
 
 Nhân vật gắn với tài khoản Claude của máy tạo ra nó (mod đọc `oauthAccount.accountUuid` trong `~/.claude.json`, chỉ gửi mã này, không gửi email).
 
-1. Trên máy đang có nhân vật: `/tutien lien-ket` → nhận mã 8 ký tự, hết hạn sau 10 phút.
+1. Trên máy đang có nhân vật: `/tutien lien-ket` → nhận mã 8 ký tự, hết hạn sau 24 giờ, dùng một lần.
 2. Trên máy kia, **cùng tài khoản Claude**: `/tutien dang-nhap <tên> <mã>`.
 
 Máy đăng nhập tài khoản Claude khác sẽ bị từ chối. `/tutien khoa-moi` đổi khóa và đăng xuất mọi máy khác.

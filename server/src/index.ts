@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 // Worker: định tuyến và xác thực khóa. Luật nằm trong logic.ts, extras.ts, social.ts và hooks/rules.ts.
-import { PlayerDO } from './player.ts'
+import { PlayerDO, LINK_MS } from './player.ts'
 import { RosterDO } from './roster.ts'
 import { CLASSES as C, GENDERS as G, REALM_NAMES } from '../../hooks/rules.ts'
 import { upcomingHolidays } from '../../hooks/holidays.ts'
@@ -175,7 +175,7 @@ export default {
     if (url.pathname === '/link-code') {
       const code = linkCode()
       await stub.fetch('https://do/link-code', post({ codeHash: await sha256(code) }))
-      return json({ code, minutes: 10 })
+      return json({ code, minutes: LINK_MS / 60_000 })
     }
 
     let body: any = undefined

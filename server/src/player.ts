@@ -10,7 +10,7 @@ import { CLASSES as C, GENDERS as G, type Artifact } from '../../hooks/rules.ts'
 const CLASSES: readonly string[] = C
 const GENDERS: readonly string[] = G
 const MAX_DEVICES = 5
-const LINK_MS = 10 * 60_000
+export const LINK_MS = 24 * 60 * 60_000
 const LINK_TRIES = 5
 
 export class PlayerDO {
