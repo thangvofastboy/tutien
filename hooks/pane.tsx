@@ -24,6 +24,8 @@ const board = atom({ plugin: 'tutien', key: 'board' } as const, [] as BoardRow[]
 // Nhiệm vụ ngày, bí cảnh, Tâm Ma, tông (spec 18.4): dòng phụ trong pane.
 type Info = { quest: number; bicanh: string | null; tamma: number | null; tong: string | null }
 const info = atom({ plugin: 'tutien', key: 'info' } as const, null as Info | null)
+// Kết quả nút lệnh nhanh: hiện ngay trong panel (không chỉ trong khung chat).
+const quickOut = atom({ plugin: 'tutien', key: 'quickOut' } as const, null as { title: string; text: string } | null)
 const settingsTick = atom({ plugin: 'tutien', key: 'settingsTick' } as const, 0)
 const wizard = atom({ plugin: 'tutien', key: 'wizard' } as const, { step: 0 } as Wizard)
 const wizardError = atom({ plugin: 'tutien', key: 'wizardError' } as const, null as string | null)
@@ -211,7 +213,13 @@ const QUICK = [
   { arg: 'setting', label: '⚙️ Cài đặt' },
 ]
 function runQuick($: any, arg: string) {
-  void $.command.run({ command: 'tutien', args: arg }).catch(() => undefined)
+  void (async () => {
+    const title = QUICK.find(q => q.arg === arg)?.label ?? arg
+    if (arg !== 'setting') await update($, quickOut, () => ({ title, text: '⏳ Đang tải…' }))
+    const r = await $.command.run({ command: 'tutien', args: arg }).catch(() => undefined)
+    if (arg === 'setting') return // cài đặt mở pane riêng
+    await update($, quickOut, () => ({ title, text: String(r?.text ?? '').trim() || 'Không có dữ liệu.' }))
+  })()
 }
 
 export async function renderPane($: any, e: any) {
@@ -258,6 +266,7 @@ export async function renderPane($: any, e: any) {
   const bg = PANEL_BG[panelbg ?? 'terminal']
   const compact = compactSetting === 'on'
   const inf = await read($, info)
+  const out = await read($, quickOut)
   const lines = boardLines(await read($, board), ((await $.store.get('tutien.name')) as string | undefined) ?? '')
   const now = Date.now()
   const rc = realmColor(p.realm)
@@ -298,6 +307,10 @@ export async function renderPane($: any, e: any) {
       {!compact && lines.length ? card('bxh', '🏆 Bảng Tu Vi', '#ffd54f', lines.map(l => (
         <Text key={`b-${l.text}`} size={sz.body} color={l.mine ? th.mine : rankColor(l.rank)} bold={l.mine || l.rank <= 3}>{l.text}</Text>
       ))) : null}
+      {out ? card('out', out.title, '#79c0ff', [
+        ...out.text.split('\n').map((t, i) => <Text key={`o-${i}`} size={sz.body}>{t || ' '}</Text>),
+        ...(Button ? [<Button key="out-close" onPress={() => void update($, quickOut, () => null)}>✖ Đóng</Button>] : []),
+      ]) : null}
       {Button ? (
         <Box flexDirection="row" flexWrap="wrap" gap={1}>
           {QUICK.map(q => <Button key={`quick:${q.arg}`} onPress={() => runQuick($, q.arg)}>{q.label}</Button>)}
