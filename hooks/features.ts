@@ -10,15 +10,15 @@ const fail = (r: Res) =>
 const say = (r: Res) => (r.ok ? (r.data?.text ?? 'Xong.') : fail(r))
 
 export const FEATURE_HELP = [
-  '/tutien ky-ngo [a|b]                     🎲 xem và chọn kỳ ngộ',
-  '/tutien linh-can                         🌈 linh căn ngũ hành của đạo hữu',
-  '/tutien luan-dao <tên>                   ⚔️ luận đạo với đạo hữu khác (3 trận mỗi ngày)',
-  '/tutien chuoi                            🔥 chuỗi ngày tu luyện và mốc thưởng',
-  '/tutien cong-phap [hoc <id> | tay-tuy]   📖 cây công pháp',
-  '/tutien tong-chien                       🏯 tông chiến tuần, Linh Mạch, Thiên Kiếp Đồng Tâm',
-  '/tutien bai-su <tên> · nhan-do <tên> · su-do [huy]   🧑‍🏫 sư đồ',
-  '/tutien the                              🪪 thẻ khoe nhân vật (ảnh SVG)',
-  '/tutien truyen-tuan                      📜 truyện tu tiên tuần này, do Claude chấp bút',
+  '🎲 /tutien ky-ngo [a|b]                     xem và chọn kỳ ngộ',
+  '🌈 /tutien linh-can                         linh căn ngũ hành của đạo hữu',
+  '⚔️ /tutien luan-dao <tên>                   luận đạo với đạo hữu khác (3 trận mỗi ngày)',
+  '🔥 /tutien chuoi                            chuỗi ngày tu luyện và mốc thưởng',
+  '📖 /tutien cong-phap [hoc <id> | tay-tuy]   cây công pháp',
+  '🏯 /tutien tong-chien                       tông chiến tuần, Linh Mạch, Thiên Kiếp Đồng Tâm',
+  '🧑‍🏫 /tutien bai-su <tên> · nhan-do <tên> · su-do [huy]   sư đồ',
+  '🪪 /tutien the                              thẻ khoe nhân vật (ảnh SVG)',
+  '📜 /tutien truyen-tuan                      truyện tu tiên tuần này, do Claude chấp bút',
 ].join('\n')
 
 // ---------- Linh căn: đếm loại việc qua mỗi lần gọi tool ----------
@@ -309,13 +309,13 @@ export async function runFeatures($: any, sub: string, rest: string[], tail: str
 
 // Màu cho từng dòng chữ trong panel, theo icon đầu dòng.
 const LINE_COLORS: [RegExp, string][] = [
-  [/^\s*(🏆|🥇|👑|✨|🎉|✅)/u, '#ffd54f'],
-  [/^\s*(⚔️|💥|🔥|⚡|👹|😈)/u, '#ff7b72'],
+  [/^\s*(🏆|🥇|👑|✨|🎉|✅|🏅)/u, '#ffd54f'],
+  [/^\s*(⚔️|💥|🔥|⚡|👹|😈|🧪|🧹)/u, '#ff7b72'],
   [/^\s*(🎁|💎|💰|🛍️|🪪)/u, '#f2cc60'],
-  [/^\s*(🌿|🍃|🌱|📈|🟢)/u, '#7ee787'],
-  [/^\s*(💧|🌀|📊|🏯|🧑‍🏫|🙇)/u, '#79c0ff'],
-  [/^\s*(📖|📜|🔮|🌈|☄️|⛲)/u, '#d2a8ff'],
-  [/^\s*(🥀|💀|🌧️|⚠️|🧊)/u, '#8b949e'],
-  [/^\s*(🎲|➡️|🅰️|🅱️)/u, '#56d4dd'],
+  [/^\s*(🌿|🍃|🌱|📈|🟢|🧘)/u, '#7ee787'],
+  [/^\s*(💧|🌀|📊|🏯|🧑‍🏫|🙇|🔍|👥|🤝|🔗|🔁)/u, '#79c0ff'],
+  [/^\s*(📖|📜|🔮|🌈|☄️|⛲|📚|🎨|🎭|💬)/u, '#d2a8ff'],
+  [/^\s*(🥀|💀|🌧️|⚠️|🧊|🪟|🔧|🌄|❓)/u, '#8b949e'],
+  [/^\s*(🎲|➡️|🅰️|🅱️|🔖|📝|📛|🔑|🔄|🆙|🌐)/u, '#56d4dd'],
 ]
 export const lineColor = (line: string): string | undefined => LINE_COLORS.find(([re]) => re.test(line))?.[1]

@@ -1,5 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
-import { classify, dominant, trackTool, linhCanLines, streakLines, cardSvg, lineColor, congPhapLines, congPhapActions, warLines, kyNgoLines, storyPrompt } from './features'
+import { classify, dominant, trackTool, linhCanLines, streakLines, cardSvg, lineColor, congPhapLines, congPhapActions, warLines, kyNgoLines, storyPrompt, FEATURE_HELP } from './features'
+import { HELP } from './commands'
+import { MORE_HELP } from './more'
 import { newPlayer } from './rules'
 import { kyNgoScene, KY_NGO_ASCII, duelScene, scrollScene, fxSvg } from './art'
 import { tribEffect, overlayFrame } from './effects'
@@ -59,6 +61,10 @@ test('màu dòng theo icon đầu dòng', () => {
   expect(lineColor('🏆 thắng')).toBe('#ffd54f')
   expect(lineColor('⚔️ đánh')).toBe('#ff7b72')
   expect(lineColor('chữ thường')).toBeUndefined()
+})
+
+test('mọi dòng /tutien help đều có icon và màu', () => {
+  for (const line of [...HELP.split('\n'), ...MORE_HELP.split('\n'), ...FEATURE_HELP.split('\n')]) expect(lineColor(line), line).toBeDefined()
 })
 
 test('thẻ khoe: SVG có tên, cảnh giới, ảnh nhúng, thoát ký tự lạ', () => {

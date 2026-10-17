@@ -17,21 +17,21 @@ function social($: any, body: object) {
 }
 
 export const MORE_HELP = [
-  '/tutien history (h)                     biểu đồ 14 ngày và nhật ký tuần',
-  '/tutien tim <tên>                       xem một đạo hữu',
-  '/tutien team                            tiến độ team, sự kiện, lễ hội sắp tới',
-  '/tutien thu-vien                        thư viện pháp bảo, đan, huy hiệu',
-  '/tutien tong tao|vao <tên> · roi · xem  tông môn',
-  '/tutien tong bo-nhiem <tên> <chức vụ>   tông chủ bổ nhiệm',
-  '/tutien ban|dao-lu <tên> · chap-nhan <tên> · huy',
-  '/tutien chuc-mung <tên>                 chúc mừng người vừa đột phá',
-  '/tutien bicanh                          ghi danh bí cảnh tháng (ngày 1–2)',
-  '/tutien luyen-dan · uong-dan <loại>     ho-the, toc-tu, thong-thien',
-  '/tutien be-quan <ngày> · be-quan xuat-quan',
-  '/tutien cho · mua <món> · trang-bi <món> · doi-phap-bao <e|t|d>',
-  '/tutien lien-ket · dang-nhap <tên> <mã> dùng chung nhân vật trên máy khác (cùng tài khoản Claude)',
-  '/tutien dang-nhap-xong                  kiểm tra lại lần liên kết bị mất kết nối giữa chừng',
-  '/tutien doi-ten <tên mới>               đổi tên nhân vật (7 ngày một lần)',
+  '📊 /tutien history (h)                     biểu đồ 14 ngày và nhật ký tuần',
+  '🔍 /tutien tim <tên>                       xem một đạo hữu',
+  '👥 /tutien team                            tiến độ team, sự kiện, lễ hội sắp tới',
+  '📚 /tutien thu-vien                        thư viện pháp bảo, đan, huy hiệu',
+  '🏯 /tutien tong tao|vao <tên> · roi · xem  tông môn',
+  '🏅 /tutien tong bo-nhiem <tên> <chức vụ>   tông chủ bổ nhiệm',
+  '🤝 /tutien ban|dao-lu <tên> · chap-nhan <tên> · huy',
+  '🎉 /tutien chuc-mung <tên>                 chúc mừng người vừa đột phá',
+  '🌀 /tutien bicanh                          ghi danh bí cảnh tháng (ngày 1–2)',
+  '🧪 /tutien luyen-dan · uong-dan <loại>     ho-the, toc-tu, thong-thien',
+  '🧘 /tutien be-quan <ngày> · be-quan xuat-quan',
+  '💰 /tutien cho · mua <món> · trang-bi <món> · doi-phap-bao <e|t|d>',
+  '🔗 /tutien lien-ket · dang-nhap <tên> <mã> dùng chung nhân vật trên máy khác (cùng tài khoản Claude)',
+  '🔁 /tutien dang-nhap-xong                  kiểm tra lại lần liên kết bị mất kết nối giữa chừng',
+  '📛 /tutien doi-ten <tên mới>               đổi tên nhân vật (7 ngày một lần)',
 ].join('\n')
 
 // Liên kết đang dở (mất phản hồi khi gộp): nhân vật cũ đã bị xóa thì gộp đã xong, chuyển sang khóa mới;
