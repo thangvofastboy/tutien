@@ -41,13 +41,14 @@ test('chữ của các lệnh: linh căn, chuỗi ngày, công pháp, tông chi�
   expect(s).toMatch(/8 ngày/)
   expect(s).toMatch(/✅ +7 ngày/)
   expect(s).toMatch(/⬜ +14 ngày/)
-  const tree = { school: 'Thục Sơn Kiếm Phái', icon: '⚔️', color: '#79c0ff', points: 2, spent: 1, ultNeeds: 6, skills: [
-    { id: 'nhat-kiem', name: 'Nhất Kiếm Phá Bug', icon: '🗡️', flavor: 'chém', desc: '+0,3% EXP', max: 3, ult: false, n: 1 },
-    { id: 'van-kiem', name: 'Vạn Kiếm Quy Tông', icon: '🌌', flavor: 'squash', desc: '+1% EXP', max: 1, ult: true, n: 0 }] }
+  const tree = { school: 'Thục Sơn Phái', schoolFrom: 'Thục Sơn Kiếm Hiệp', icon: '⚔️', color: '#79c0ff', points: 2, spent: 1, ultNeeds: 6, skills: [
+    { id: 'nhat-kiem', name: 'Thanh Trúc Phong Vân Kiếm', from: 'Phàm Nhân Tu Tiên', icon: '🎋', flavor: 'kiếm tre', desc: '+0,3% EXP', max: 3, ult: false, n: 1 },
+    { id: 'van-kiem', name: 'Lục Mạch Thần Kiếm', from: 'Thiên Long Bát Bộ', icon: '🌌', flavor: 'wifi', desc: '+1% EXP', max: 1, ult: true, n: 0 }] }
   const cp = congPhapLines(tree).join('\n')
-  expect(cp).toMatch(/Thục Sơn Kiếm Phái/)
-  expect(cp).toMatch(/Nhất Kiếm Phá Bug ★☆☆/)
-  expect(cp).toMatch(/TUYỆT KỸ 🌌 Vạn Kiếm Quy Tông ☆ 🔒 cần 6 tầng/)
+  expect(cp).toMatch(/Thục Sơn Phái \(Thục Sơn Kiếm Hiệp\)/)
+  expect(cp).toMatch(/Thanh Trúc Phong Vân Kiếm ★☆☆/)
+  expect(cp).toMatch(/📚 Phàm Nhân Tu Tiên/)
+  expect(cp).toMatch(/TUYỆT KỸ 🌌 Lục Mạch Thần Kiếm ☆ 🔒 cần 6 tầng/)
   expect(congPhapActions(tree).map(a => a.arg)).toEqual(['cong-phap hoc nhat-kiem'])
   expect(warLines({ war: { standings: [{ rank: 1, name: 'Thanh Vân', members: 3, pct: 100 }], lastWinner: 'Thanh Vân' }, teamWeek: { pct: 50, done: false } }).join('\n')).toMatch(/Linh Mạch tuần này thuộc về Thanh Vân/)
   expect(kyNgoLines(null)[0]).toMatch(/Không có kỳ ngộ/)
@@ -113,7 +114,7 @@ test('hình minh họa: mỗi kỳ ngộ một cảnh SVG có hoạt ảnh, lu�
     expect(KY_NGO_ASCII[id].length).toBe(3)
   }
   expect(duelScene('A<', 'B', '🗡️', '😈', true)).toContain('A&lt;')
-  expect(scrollScene('Huyết Ma Giáo', '😈', '#f778ba', [{ icon: '🩸', n: 2, max: 3, ult: false }])).toContain('★★☆')
+  expect(scrollScene('Nhật Nguyệt Thần Giáo', '😈', '#f778ba', [{ icon: '🩸', n: 2, max: 3, ult: false }])).toContain('★★☆')
   expect(fxSvg('fire', 0)).not.toBe(fxSvg('fire', 1)) // khung đổi theo tick
   expect(fxSvg('meteor', 3)).toContain('☄️')
 })
@@ -131,11 +132,11 @@ test('panel: có hiệu ứng thì Desktop vẽ thêm khung SVG hoạt ảnh', a
   mock.store(on)
   on('http.fetch', async (_$: any, e: any) => String(e.url).includes('/register') ? reply(200, { key: 'k' })
     : String(e.url).includes('/leaderboard') ? reply(200, { rows: [] })
-    : String(e.url).includes('/cong-phap') ? reply(200, { text: '📖 Lĩnh ngộ 🪨 Đồng Bì Thiết Cốt tầng 1/3!' })
+    : String(e.url).includes('/cong-phap') ? reply(200, { text: '📖 Lĩnh ngộ 🪨 Bá Thể Tam Đan Công tầng 1/3!' })
     : reply(200, { player: newPlayer('Thể Tu', 'Nữ'), status: { quest: { pct: 1 } }, social: {} }))
   on('fs.read', async () => ({ value: { base64: 'iVBORw0KGgo=' } }) as any)
   await $.command.run(RUN('register ThangVo "Thể Tu" Nữ'))
-  expect((await $.command.run(RUN('cong-phap hoc dong-bi'))).text).toMatch(/Đồng Bì Thiết Cốt/)
+  expect((await $.command.run(RUN('cong-phap hoc dong-bi'))).text).toMatch(/Bá Thể Tam Đan Công/)
   const ui = await $.ui.mount({ plugin: 'tutien', surface: 'desktop', component: 'Pane', requestId: 'tu-tien', props: { title: 'Tu tiên', bodyColumns: 80 } } as any)
   expect(await ui.find({ type: 'Svg', alt: 'scroll' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /Lĩnh Ngộ Công Pháp/ })).toBeDefined()

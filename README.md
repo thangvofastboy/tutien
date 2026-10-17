@@ -171,15 +171,17 @@ Thỉnh thoảng sau một lượt chat, Tâm Ma hiện ra: 2% lúc bình thư�
 - 🔥 **Chuỗi ngày**: 3 ngày +5 linh thạch, 7 ngày +1 pháp bảo, 14 ngày +20 linh thạch, 30 ngày +1 pháp bảo hiếm, 100 ngày huy hiệu Đạo Tâm Bất Diệt. Đứt chuỗi thì các mốc mở lại.
 - 📖 **Công pháp**: mỗi lớp một môn phái, một cây riêng: 4 công pháp 3 tầng và 1 **tuyệt kỹ** (mở khi đã tu 6 tầng). Mỗi lần đột phá được 1 điểm (người chơi cũ nhận sẵn điểm theo bậc). Bấm nút "Học" ngay trong panel. Đổi lớp thì công pháp lớp cũ được hoàn điểm. Tẩy tủy hoàn điểm, tốn 20 linh thạch.
 
-  | Lớp | Môn phái | Tuyệt kỹ | Thế mạnh |
-  |---|---|---|---|
-  | 🗡️ Kiếm Tu | Thục Sơn Kiếm Phái | 🌌 Vạn Kiếm Quy Tông | EXP, luận đạo |
-  | ⚗️ Đan Sư | Dược Vương Cốc | 🟡 Cửu Chuyển Kim Đan | thiên phạt nhẹ, linh thạch |
-  | 🔯 Trận Pháp Sư | Thiên Cơ Các | ✨ Chu Thiên Tinh Đấu Đại Trận | phòng thủ, thiên phạt |
-  | 🔨 Luyện Khí Sư | Thần Binh Các | 🗡️ Thần Binh Xuất Thế | linh thạch, luận đạo |
-  | 📜 Phù Tu | Long Hổ Sơn | 🌠 Vạn Phù Triều Tông | kỳ ngộ |
-  | 💪 Thể Tu | Kim Cang Tự | 🌟 Bất Diệt Kim Thân | ít tử vong, chịu thiên phạt |
-  | 😈 Ma Tu | Huyết Ma Giáo | 💀 Thiên Ma Giải Thể | EXP cao nhất |
+  Tên môn phái và công pháp mượn từ các truyện tu tiên, kiếm hiệp nổi tiếng (ghi xuất xứ trong game); hiệu lực là của riêng Tu Tiên Ký.
+
+  | Lớp | Môn phái | Công pháp | Tuyệt kỹ | Thế mạnh |
+  |---|---|---|---|---|
+  | 🗡️ Kiếm Tu | Thục Sơn Phái (Thục Sơn Kiếm Hiệp) | Thanh Trúc Phong Vân Kiếm, Độc Cô Cửu Kiếm, Tử Hà Thần Công, Lăng Ba Vi Bộ | 🌌 Lục Mạch Thần Kiếm | EXP, luận đạo |
+  | ⚗️ Đan Sư | Hoàng Phong Cốc (Phàm Nhân Tu Tiên) | Thanh Liên Địa Tâm Hỏa, Chưởng Thiên Bình, Trúc Cơ Đan, Trường Xuân Công | 🏺 Hư Thiên Đỉnh | thiên phạt nhẹ, linh thạch |
+  | 🔯 Trận Pháp Sư | Thanh Vân Môn (Tru Tiên) | Thái Cực Huyền Thanh Đạo, Đại Phạn Bát Nhã, Phệ Huyết Châu, Thần Kiếm Ngự Lôi Chân Quyết | ✨ Tru Tiên Kiếm Trận | phòng thủ, thiên phạt |
+  | 🔨 Luyện Khí Sư | Minh Giáo (Ỷ Thiên Đồ Long Ký) | Huyền Thiết Trọng Kiếm, Càn Khôn Đại Na Di, Thánh Hỏa Lệnh, Cửu Dương Thần Công | 🐉 Ỷ Thiên Kiếm · Đồ Long Đao | linh thạch, luận đạo |
+  | 📜 Phù Tu | Thất Huyết Đồng (Quang Âm Chi Ngoại) | Độc Đan, Thần Linh Tàn Diện, Tử Sắc Thủy Tinh, Hải Sơn Quyết | 🌠 Cấm Chế Chi Đạo (Tiên Nghịch) | kỳ ngộ |
+  | 💪 Thể Tu | Tàn Lão Thôn (Mục Thần Ký) | Bá Thể Tam Đan Công, Hàng Long Thập Bát Chưởng, Kim Chung Tráo, Long Tượng Bát Nhã Công | 🌟 Hoang Cổ Thánh Thể (Già Thiên) | ít tử vong, chịu thiên phạt |
+  | 😈 Ma Tu | Nhật Nguyệt Thần Giáo (Tiếu Ngạo Giang Hồ) | Hấp Tinh Đại Pháp, Hóa Công Đại Pháp, Cửu Âm Bạch Cốt Trảo, Quỳ Hoa Bảo Điển | 💀 Đại Dục Thiên Ma Kinh (Mục Thần Ký) | EXP cao nhất |
 - 🏯 **Tông chiến**: tông có từ 2 người thi tổng token tuần. Tông thắng tuần trước giữ ⛲ Linh Mạch: cả tông +0,5% EXP.
 - ☄️ **Thiên Kiếp Đồng Tâm**: cả team đạt mốc token tuần (3 triệu mỗi người, ít nhất 10 triệu) thì ai cũng +1% EXP đến hết tuần.
 - 🧑‍🏫 **Sư đồ**: bái sư người từ bậc 7, cao hơn mình 3 bậc. Đồ đệ +0,5% EXP; mỗi lần đồ đệ đột phá, sư phụ +5 linh thạch. Mỗi sư phụ tối đa 3 đồ đệ.

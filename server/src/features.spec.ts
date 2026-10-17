@@ -41,7 +41,8 @@ test('công pháp: mỗi lớp một cây riêng, học tốn điểm, có trầ
   const st = { ...fresh(), player: { ...fresh().player, realm: 3 } } // Kiếm Tu, 2 điểm
   const a = learn(st, 'nhat-kiem')
   assert.deepEqual(a.congPhap, { points: 1, learned: { 'nhat-kiem': 1 } })
-  assert.match(a.text!, /Nhất Kiếm Phá Bug/)
+  assert.match(a.text!, /Thanh Trúc Phong Vân Kiếm/)
+  assert.match(a.text!, /Phàm Nhân Tu Tiên/)
   assert.ok(learn(st, 'huyet-ma').error) // công pháp của Ma Tu
   const b = learn({ ...st, congPhap: a.congPhap }, 'nhat-kiem')
   assert.equal(b.congPhap!.points, 0)
@@ -61,7 +62,8 @@ test('công pháp: tuyệt kỹ cần đủ 6 tầng; đổi lớp thì hoàn đ
   assert.match(ult.text!, /TUYỆT KỸ/)
   const ma = { ...st, player: { ...st.player, cls: 'Ma Tu' } }
   assert.deepEqual(congPhapOf(ma), { points: 10, learned: {} })
-  assert.equal(treeView(ma).school, 'Huyết Ma Giáo')
+  assert.equal(treeView(ma).school, 'Nhật Nguyệt Thần Giáo')
+  assert.equal(treeView(ma).schoolFrom, 'Tiếu Ngạo Giang Hồ')
   assert.equal(treeView(ma).skills.length, 5)
   assert.ok(cpEffects({ ...st, congPhap: { points: 0, learned: { 'kiem-tam': 2 } } }).duel === 8)
 })
@@ -71,6 +73,7 @@ test('công pháp: lớp nào cũng có 4 công pháp thường và 1 tuyệt k�
     const sk = Object.values(t.skills)
     assert.equal(sk.length, 5, cls)
     assert.equal(sk.filter(s => s.ult).length, 1, cls)
+    for (const x of sk) assert.ok(x.from && x.flavor, `${cls}: ${x.name} cần ghi xuất xứ và lời đùa`)
   }
 })
 

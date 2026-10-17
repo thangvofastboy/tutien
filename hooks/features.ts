@@ -104,16 +104,16 @@ export function streakLines(n: number): string[] {
 }
 
 export type Tree = {
-  school: string; icon: string; color: string; points: number; spent: number; ultNeeds: number
-  skills: { id: string; name: string; icon: string; flavor: string; desc: string; max: number; ult: boolean; n: number }[]
+  school: string; schoolFrom?: string; icon: string; color: string; points: number; spent: number; ultNeeds: number
+  skills: { id: string; name: string; from?: string; icon: string; flavor: string; desc: string; max: number; ult: boolean; n: number }[]
 }
 export function congPhapLines(t: Tree): string[] {
-  const out = [`📖 ${t.icon} ${t.school} · Tàng Kinh Các`, `✨ Điểm công pháp: ${t.points}${t.points ? '' : ' (đột phá để nhận thêm)'} · đã tu ${t.spent} tầng`, '']
+  const out = [`📖 ${t.icon} ${t.school}${t.schoolFrom ? ` (${t.schoolFrom})` : ''} · Tàng Kinh Các`, `✨ Điểm công pháp: ${t.points}${t.points ? '' : ' (đột phá để nhận thêm)'} · đã tu ${t.spent} tầng`, '']
   for (const s of t.skills) {
     const stars = `${'★'.repeat(s.n)}${'☆'.repeat(s.max - s.n)}`
     const locked = s.ult && t.spent < t.ultNeeds && s.n === 0
     out.push(`${s.ult ? '🌟 TUYỆT KỸ ' : '   '}${s.icon} ${s.name} ${stars}${locked ? ` 🔒 cần ${t.ultNeeds} tầng` : ''}`)
-    out.push(`      ${s.desc}`, `      💬 "${s.flavor}"`)
+    out.push(`      ${s.desc}${s.from ? ` · 📚 ${s.from}` : ''}`, `      💬 "${s.flavor}"`)
     if (s.n < s.max && !locked) out.push(`      → /tutien cong-phap hoc ${s.id}`)
   }
   out.push('', '🧪 Tẩy tủy (học lại từ đầu, hoàn điểm): /tutien cong-phap tay-tuy · 20 linh thạch')
