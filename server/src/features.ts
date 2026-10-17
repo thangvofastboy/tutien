@@ -13,6 +13,7 @@ export type Features = {
   kyNgoTotal?: number
   luanDao?: { day: string; n: number; wins: number; losses: number }
   streakClaimed?: number[]
+  streakRun?: { day: string; n: number } // chuỗi ngày đếm liên tục (lịch sử chỉ giữ 90 ngày nên không đếm tới mốc 100)
   congPhap?: CongPhap
   teamWeek?: string // tuần đã báo Thiên Kiếp Đồng Tâm
 }
@@ -187,8 +188,17 @@ export const STREAK_REWARDS: { days: number; kind: 'lt' | 'artifact' | 'rare' | 
   { days: 30, kind: 'rare', label: '🔥🔥🔥 30 ngày liên tục: +1 pháp bảo hiếm' },
   { days: 100, kind: 'badge', label: '☄️ 100 ngày liên tục: danh hiệu Đạo Tâm Bất Diệt' },
 ]
+// Chuỗi ngày hôm nay: lịch sử chỉ giữ HISTORY_DAYS ngày, nên nối tiếp bộ đếm đã lưu khi hôm qua còn trong chuỗi.
+export function streakDays(st: St, now: number): number {
+  const fromHist = streak(st.history, now)
+  if (!fromHist) return 0
+  const run = st.streakRun
+  if (run?.day === vnDay(now)) return Math.max(run.n, fromHist)
+  if (run?.day === vnDay(now - DAY)) return Math.max(run.n + 1, fromHist)
+  return fromHist
+}
 export function streakStep(st: St, now: number, rng: () => number): { state: Partial<St>; events: string[] } {
-  const n = streak(st.history, now)
+  const n = streakDays(st, now)
   // Đứt chuỗi thì mốc đã nhận được mở lại cho chuỗi mới.
   let claimed = (st.streakClaimed ?? []).filter(d => d <= n)
   let p = st.player
@@ -205,7 +215,7 @@ export function streakStep(st: St, now: number, rng: () => number): { state: Par
     inbox = pushInbox(inbox, r.label, now)
     events.push(`streak:${r.days}`)
   }
-  return { state: { streakClaimed: claimed, player: p, linhThach: lt, inbox, badges }, events }
+  return { state: { streakClaimed: claimed, streakRun: n ? { day: vnDay(now), n } : undefined, player: p, linhThach: lt, inbox, badges }, events }
 }
 
 // ---------- Luận đạo ----------

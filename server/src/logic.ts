@@ -3,11 +3,11 @@ import { tammaStep, LINH_THACH_REWARD, type TammaState } from '../../hooks/tamma
 import { applyUsage, newPlayer, effects, need, settle, NEED, REALM_COUNT, REALM_NAMES, TOKENS_PER_EXP, type Player, type Extra } from '../../hooks/rules.ts'
 import {
   recordDay, questStep, newBadges, grantArtifact, randomArtifact, bicanhStep, holidayStep, pillExtra, pillAfter,
-  inBeQuan, floorsStep, pushInbox, topFloor, weekKey, sumRange, nextDayKey, lastDays, journal, streak, bicanhProgress,
+  inBeQuan, floorsStep, pushInbox, topFloor, weekKey, sumRange, nextDayKey, lastDays, journal, bicanhProgress,
   QUEST_TOKENS, PILLS, BADGES, giftStep, type Extras,
 } from './extras.ts'
 import { vnDay, holidayOn, holidayTarget } from '../../hooks/holidays.ts'
-import { featureExtra, streakStep, maybeKyNgo, congPhapOf, kyNgoView, duelCount, treeView, LINH_CAN, type Features } from './features.ts'
+import { featureExtra, streakStep, streakDays, maybeKyNgo, congPhapOf, kyNgoView, duelCount, treeView, LINH_CAN, type Features } from './features.ts'
 import { cpEffects } from './congphap.ts'
 
 export const SEEN_LIMIT = 1000
@@ -171,13 +171,15 @@ export function handleUsage(
     tamma,
   }
   // Tính năng mới: chuỗi ngày, kỳ ngộ, điểm công pháp khi đột phá, tin Thiên Kiếp Đồng Tâm.
-  const sk = streakStep(next, now, rng)
-  let after: State = { ...next, ...sk.state }
-  events.push(...sk.events)
-  if (events.includes('breakthrough')) {
-    const cp = congPhapOf(st)
-    after = { ...after, congPhap: { ...cp, points: cp.points + 1 } }
+  let after: State = next
+  if (suspicion < FLAG_AT) {
+    const sk = streakStep(next, now, rng)
+    after = { ...after, ...sk.state }
+    events.push(...sk.events)
   }
+  // Lưu điểm công pháp theo bậc trước lượt này (người chơi cũ chưa lưu thì không mất điểm khi tử vong).
+  const cp = congPhapOf(st)
+  after = { ...after, congPhap: events.includes('breakthrough') ? { ...cp, points: cp.points + 1 } : cp }
   if (!closed && suspicion < FLAG_AT) {
     const kn = maybeKyNgo(after, tokens, now, rng)
     after = { ...after, kyNgo: kn.kyNgo, kyNgoDay: kn.kyNgoDay }
@@ -354,7 +356,7 @@ export function statusOf(st: State, now: number) {
     badges: st.badges ?? [],
     artifacts: st.player.artifacts,
     floor: topFloor(st.floors),
-    streak: streak(h, now),
+    streak: streakDays(st, now),
     tamma: st.tamma?.active && now <= st.tamma.active.until ? { pct: Math.min(100, Math.floor((st.tamma.active.got / st.tamma.active.need) * 100)), until: st.tamma.active.until } : null,
     tammaWins: st.tamma?.wins ?? 0,
     congrats: st.congrats ?? 0,
@@ -397,15 +399,22 @@ export function mergeStates(main: State, old: State): State {
     const m = history[day]
     history[day] = m ? { ...m, t: m.t + d.t, e: m.e + d.e, q: m.q || d.q, ev: sumMaps(m.ev, d.ev) } : d
   }
+  // Pháp bảo của nhân vật cũ đi qua trần như khi nhận thường (chạm trần thì hóa linh thạch).
+  let player: Player = { ...mp, realm, exp, pending: pendingTotal % TOKENS_PER_EXP }
+  let linhThach = (main.linhThach ?? 0) + (old.linhThach ?? 0)
+  for (const a of old.player.artifacts) ({ p: player, linhThach } = grantArtifact(player, a, linhThach))
+  // Bậc nhảy lên nhờ gộp cũng cho điểm công pháp như đột phá thường.
+  const cp = congPhapOf(main)
   return {
     ...main,
-    player: { ...mp, realm, exp, pending: pendingTotal % TOKENS_PER_EXP, artifacts: [...mp.artifacts, ...old.player.artifacts] },
+    player,
+    congPhap: { ...cp, points: cp.points + (realm - mp.realm) },
     lifetimeTokens: main.lifetimeTokens + old.lifetimeTokens,
     deaths: main.deaths + old.deaths,
     resets: main.resets + old.resets,
     weekTokens: sumMaps(main.weekTokens, old.weekTokens),
     history,
-    linhThach: (main.linhThach ?? 0) + (old.linhThach ?? 0),
+    linhThach,
     badges: [...new Set([...(main.badges ?? []), ...(old.badges ?? [])])],
     inventory: [...new Set([...(main.inventory ?? []), ...(old.inventory ?? [])])],
     inbox: pushInbox(main.inbox, `🔗 Đã gộp nhân vật ${old.name} vào đây (+${cumulativeExp(old.player)} EXP).`, Date.now()),

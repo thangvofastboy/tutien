@@ -205,6 +205,7 @@ export default {
       const rows = await allRows()
       const me = rows.find(r => r.name.toLowerCase() === name.toLowerCase())
       const foe = rows.find(r => r.name.toLowerCase() === String(body?.target ?? '').toLowerCase())
+      if (me?.flagged) return json({ error: 'Nhân vật đang bị đánh dấu, chờ admin xem xét.' }, 403)
       if (!me || !foe || foe.flagged) return json({ error: `Không tìm thấy đạo hữu "${body?.target ?? ''}".` }, 404)
       if (foe.name.toLowerCase() === name.toLowerCase()) return json({ error: '🪞 Tự đánh với bóng mình trong gương? Thắng cũng không vẻ vang gì.' }, 400)
       const fighter = (r: Row) => ({ name: r.name, realm: r.realm, artifacts: r.artifacts, linhCan: r.linhCan, duel: r.duel })
@@ -269,6 +270,11 @@ export default {
     if (!res.ok) return res
     const data = (await res.json()) as any
 
+    // Đồ đệ đột phá (lượt thường hoặc kỳ ngộ): sư phụ nhận học phí.
+    if ((url.pathname === '/usage' || url.pathname === '/ky-ngo') && (data.events ?? []).includes('breakthrough')) {
+      const info = await rosterJson<{ master?: string | null }>(`/social-info?name=${encodeURIComponent(name)}`)
+      if (info.master) await playerStub(info.master).fetch('https://do/linh-thach', post({ delta: MASTER_REWARD, text: `🧑‍🏫 Đồ đệ ${name} vừa đột phá ${REALM_NAMES[data.player.realm - 1]}! +${MASTER_REWARD} linh thạch học phí.` }))
+    }
     if (url.pathname === '/usage') {
       if (partner && data.gainedExp > 0) {
         const gift = Math.floor(data.gainedExp * GIFT_RATE)
@@ -279,11 +285,6 @@ export default {
         }
       }
       const events: string[] = data.events ?? []
-      // Đồ đệ đột phá: sư phụ nhận học phí.
-      if (events.includes('breakthrough')) {
-        const info = await rosterJson<{ master?: string | null }>(`/social-info?name=${encodeURIComponent(name)}`)
-        if (info.master) await playerStub(info.master).fetch('https://do/linh-thach', post({ delta: MASTER_REWARD, text: `🧑‍🏫 Đồ đệ ${name} vừa đột phá ${REALM_NAMES[data.player.realm - 1]}! +${MASTER_REWARD} linh thạch học phí.` }))
-      }
       const major = events.includes('breakthrough') && (data.player.realm - 1) % 3 === 0
       if (env.WEBHOOK_URL && (major || events.includes('death'))) {
         const text = events.includes('death')

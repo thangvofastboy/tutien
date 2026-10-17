@@ -291,6 +291,25 @@ export function renameSocial(s: Social, from: string, to: string): Social {
   }
 }
 
+// Xóa một người khỏi mọi quan hệ xã hội (nhân vật đã gộp vào nhân vật khác rồi bị xóa).
+// Tông Chủ còn thành viên thì nhường tông cho thành viên đầu tiên.
+export function removeSocial(s: Social, name: string): Social {
+  const n = lc(name)
+  const tongs: Social['tongs'] = {}
+  for (const [k, t] of Object.entries(s.tongs)) {
+    const members = Object.fromEntries(Object.entries(t.members).filter(([m]) => lc(m) !== n))
+    if (!Object.keys(members).length) continue
+    const heir = lc(t.owner) === n ? Object.keys(members)[0] : null
+    tongs[k] = heir ? { ...t, owner: heir, members: { ...members, [heir]: 'tong-chu' } } : { ...t, members }
+  }
+  const unlink = (m: Record<string, string>) => Object.fromEntries(Object.entries(m).filter(([a, b]) => a !== n && b !== n))
+  return {
+    ...s, tongs, companions: unlink(s.companions), partners: unlink(s.partners),
+    invites: s.invites.filter(i => lc(i.from) !== n && lc(i.to) !== n),
+    masters: s.masters ? unlink(s.masters) : undefined,
+  }
+}
+
 // Tên đã đổi đi (bia mộ): roster bỏ qua ảnh chụp trễ của DO cũ, trừ khi có người ghi danh lại tên đó.
 export const acceptRow = (gone: string[], name: string, revive: boolean) => revive || !gone.includes(name.toLowerCase())
 

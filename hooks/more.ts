@@ -137,8 +137,6 @@ export async function runMore($: any, sub: string, rest: string[], tail: string)
       if (res.status === 426) return 'Server chưa nhận phiên bản mod này. Chạy /tutien update.'
       const data = JSON.parse(res.text || '{}')
       if (!res.ok) return data.error ?? `Liên kết thất bại (${res.status}).`
-      await $.store.set('tutien.key', data.key)
-      await $.store.set('tutien.name', name)
       // Máy này đã có nhân vật riêng (khác nhân vật liên kết): gộp hết vào nhân vật chính rồi xóa nhân vật cũ.
       let merged = ''
       if (oldName && oldKey && oldName.toLowerCase() !== name.toLowerCase()) {
@@ -153,8 +151,12 @@ export async function runMore($: any, sub: string, rest: string[], tail: string)
           body: JSON.stringify({ into: name, intoKey: data.key }),
         }).catch(() => null)
         const out = m?.ok ? JSON.parse(m.text || '{}') : null
-        merged = out ? `\n➕ Đã gộp nhân vật cũ ${oldName} vào ${name} (+${out.gained} EXP, cộng cả linh thạch, pháp bảo, huy hiệu); nhân vật cũ đã xóa.` : `\n⚠️ Chưa gộp được nhân vật cũ ${oldName}; gõ lại /tutien dang-nhap nếu cần.`
+        // Gộp hỏng: giữ khóa của nhân vật cũ trên máy này (không thì mất hẳn quyền vào nhân vật cũ).
+        if (!out) return `⚠️ Chưa gộp được nhân vật cũ ${oldName} vào ${name}; máy này vẫn dùng ${oldName}. Tạo mã mới bằng /tutien lien-ket trên máy kia rồi gõ lại /tutien dang-nhap.`
+        merged = `\n➕ Đã gộp nhân vật cũ ${oldName} vào ${name} (+${out.gained} EXP, cộng cả linh thạch, pháp bảo, huy hiệu); nhân vật cũ đã xóa.`
       }
+      await $.store.set('tutien.key', data.key)
+      await $.store.set('tutien.name', name)
       return `🔗 Đã liên kết. Máy này dùng chung nhân vật ${name}.${merged}`
     }
     case 'doi-ten': {

@@ -1,10 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { register, handleUsage, type State } from './logic.ts'
-import { maybeKyNgo, resolveKyNgo, kyNgoView, learn, resetCongPhap, featureExtra, streakStep, duel, congPhapOf, treeView, KY_NGO, KY_NGO_PER_DAY, RESET_COST } from './features.ts'
+import { register, handleUsage, mergeStates, type State } from './logic.ts'
+import { maybeKyNgo, resolveKyNgo, kyNgoView, learn, resetCongPhap, featureExtra, streakStep, streakDays, duel, congPhapOf, treeView, KY_NGO, KY_NGO_PER_DAY, RESET_COST } from './features.ts'
 import { cpEffects, TREES } from './congphap.ts'
-import { tongWar, teamWeek, baiSu, nhanDo, suDoHuy, ctxFor, emptySocial, tongCreate, tongJoin, type Snap } from './social.ts'
+import { tongWar, teamWeek, baiSu, nhanDo, suDoHuy, ctxFor, emptySocial, tongCreate, tongJoin, removeSocial, type Snap } from './social.ts'
 import { vnDay } from '../../hooks/holidays.ts'
+import { need } from '../../hooks/rules.ts'
 
 const NOW = Date.UTC(2026, 9, 14, 12)
 const DAY = 86_400_000
@@ -141,4 +142,52 @@ test('sư đồ: bái sư, nhận đồ, đồ đệ được bonus, hủy đư�
   const base = ctxFor(s0, [snap('de', 1)], 'de', NOW).exp!
   assert.ok(ctxFor(s2, [snap('de', 1)], 'de', NOW).exp! > base)
   assert.deepEqual(suDoHuy(s2, 'su').s!.masters, {})
+})
+
+test('chuỗi ngày: đếm tiếp qua 90 ngày nhờ bộ đếm đã lưu, tới được mốc 100', () => {
+  const history: State['history'] = {}
+  for (let i = 0; i < 90; i++) history[vnDay(NOW - i * DAY)] = { t: 1000, e: 1 }
+  const st = { ...fresh(), history, streakRun: { day: vnDay(NOW - DAY), n: 99 }, streakClaimed: [3, 7, 14, 30] }
+  assert.equal(streakDays(st, NOW), 100)
+  const r = streakStep(st, NOW, always)
+  assert.ok(r.events.includes('streak:100'))
+  assert.ok(r.state.badges!.includes('dao-tam'))
+  assert.equal(streakDays({ ...fresh(), streakRun: { day: vnDay(NOW - DAY), n: 99 } }, NOW), 0) // hôm nay chưa tu
+})
+
+test('kỳ ngộ: EXP đi qua luật thường, đủ EXP thì khởi động thiên phạt (không nhảy bậc)', () => {
+  const st = { ...fresh(), kyNgo: { id: 'ao-canh', at: NOW } }
+  const r = resolveKyNgo({ ...st, player: { ...st.player, exp: need(1) - 1 } }, 'a', NOW, always)
+  assert.ok(r.events!.includes('tribulation-started'))
+  assert.equal(r.state!.player!.realm, 1)
+  // Đang thiên phạt: EXP hóa thành linh thạch.
+  const t = resolveKyNgo({ ...st, player: { ...st.player, trib: { startedAt: NOW, deadline: NOW + DAY, required: 10, earned: 0 } } }, 'a', NOW, always)
+  assert.equal(t.state!.linhThach, 5)
+})
+
+test('gộp nhân vật: pháp bảo đi qua trần, bậc nhảy lên cho điểm công pháp', () => {
+  const main = fresh()
+  const old = { ...fresh(), player: { ...fresh().player, realm: 4, artifacts: Array(40).fill('e') } }
+  const m = mergeStates(main, old)
+  assert.ok(m.player.artifacts.length < 40)
+  assert.ok((m.linhThach ?? 0) > 0)
+  assert.equal(m.congPhap!.points, m.player.realm - 1)
+})
+
+test('bị đánh dấu thì không nhận thưởng chuỗi ngày', () => {
+  const history: State['history'] = {}
+  for (let i = 1; i < 7; i++) history[vnDay(NOW - i * DAY)] = { t: 1000, e: 1 }
+  const out = handleUsage({ ...fresh(), history, suspicion: 100 }, { turnId: 'f', tokens: 1000 }, NOW, always)
+  assert.ok(!out.events.some(e => e.startsWith('streak:')))
+})
+
+test('gộp xong: tên cũ rời tông, đạo lữ, sư đồ; tông chủ cũ nhường cho người còn lại', () => {
+  let s = tongCreate(emptySocial(), 'Thanh Van', 'cu', 10).s!
+  s = tongJoin(s, 'Thanh Van', 'b').s!
+  s = { ...s, partners: { cu: 'c', c: 'cu' }, masters: { cu: 'su' } }
+  const r = removeSocial(s, 'cu')
+  assert.deepEqual(Object.keys(r.tongs['thanh van'].members), ['b'])
+  assert.equal(r.tongs['thanh van'].owner, 'b')
+  assert.deepEqual(r.partners, {})
+  assert.deepEqual(r.masters, {})
 })

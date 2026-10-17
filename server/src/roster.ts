@@ -4,7 +4,7 @@ import { sortBoards, type Row } from './logic.ts'
 import {
   emptySocial, ctxFor, memberOf, tongCreate, tongJoin, tongLeave, tongAppoint, tongWeek, invite, accept, unpair,
   seasonStep, titleOf, community, teamProgress, tongBoard, thienDaoEvent, canCongrats, ROLES,
-  renameSocial, acceptRow, congratsOnce, tongWar, teamWeek, baiSu, nhanDo, suDoHuy, disciplesOf, type Social, type Snap, type Role,
+  renameSocial, removeSocial, acceptRow, congratsOnce, tongWar, teamWeek, baiSu, nhanDo, suDoHuy, disciplesOf, type Social, type Snap, type Role,
 } from './social.ts'
 
 const lc = (s: string) => s.toLowerCase()
@@ -50,6 +50,7 @@ export class RosterDO {
       if (old) delete rows[old.name]
       await this.state.storage.put('rows', rows)
       await this.state.storage.put('gone', [...gone, lc(body.name)].slice(-500))
+      await saveSocial(removeSocial(social, body.name))
       return Response.json({ ok: true })
     }
     if (url.pathname === '/releases' && req.method === 'POST') {
@@ -126,13 +127,14 @@ export class RosterDO {
           break
         }
         case 'invite': {
+          if (body.kind !== 'ban' && body.kind !== 'dao-lu') break
           const target = find(String(body.to ?? ''))
           if (!target) { r = { error: `Không có người chơi ${body.to}.` }; break }
           r = invite(social, me, target.name, body.kind, now)
           if (r.s) notify = { to: target.name, text: `💌 ${me} mời đạo hữu làm ${body.kind === 'ban' ? 'bạn đồng hành' : 'đạo lữ'}. Gõ /tutien ${body.kind} chap-nhan ${me}.` }
           break
         }
-        case 'accept': r = accept(social, me, String(body.from ?? ''), body.kind); if (r.s) notify = { to: String(body.from), text: `💞 ${me} đã chấp nhận lời mời.` }; break
+        case 'accept': if (body.kind !== 'ban' && body.kind !== 'dao-lu') break; r = accept(social, me, String(body.from ?? ''), body.kind); if (r.s) notify = { to: String(body.from), text: `💞 ${me} đã chấp nhận lời mời.` }; break
         case 'unpair': r = unpair(social, me, body.kind); break
         case 'bai-su': {
           const target = find(String(body.to ?? ''))
