@@ -204,6 +204,17 @@ export async function renderBand($: any, e: any, next: any) {
   )
 }
 
+// Các mục panel ẩn/hiện được bằng hàng nút cuối panel; mặc định đều bật.
+const VIS: { key: string; label: string }[] = [
+  { key: 'tutien.portrait', label: 'Ảnh' }, { key: 'tutien.tu', label: 'Tu Luyện' }, { key: 'tutien.quest', label: 'Nhiệm Vụ' },
+  { key: 'tutien.board', label: 'Bảng Tu Vi' }, { key: 'tutien.kyngo', label: 'Kỳ Ngộ' }, { key: 'tutien.quick', label: 'Nút nhanh' },
+]
+// Bấm nút: đang bật thì tắt, đang tắt thì bật; lưu rồi vẽ lại panel.
+async function toggleSetting($: any, key: string, on: boolean): Promise<void> {
+  await $.store.set(key, on ? 'off' : 'on')
+  await update($, settingsTick, (n: number) => n + 1)
+}
+
 export async function refreshPane($: any): Promise<void> {
   const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
   // Hai yêu cầu độc lập: gửi song song.
@@ -352,6 +363,7 @@ export async function renderPane($: any, e: any) {
 
   const bg = PANEL_BG[panelbg ?? 'terminal']
   const compact = compactSetting === 'on'
+  const vis = Object.fromEntries(await Promise.all(VIS.map(async v => [v.key, (await setting($, v.key)) !== 'off'] as const)))
   const inf = await read($, info)
   const out = await read($, quickOut)
   const lines = boardLines(await read($, board), ((await $.store.get('tutien.name')) as string | undefined) ?? '')
@@ -375,12 +387,14 @@ export async function renderPane($: any, e: any) {
     <Box flexDirection="column" backgroundColor={bg} gap={1}>
       {overlay}
       {banner ? <Text size={sz.title} bold color={banner.color}>{banner.text}</Text> : null}
-      <Box flexDirection="column" alignItems="center" borderStyle="round" borderColor={rc} paddingX={1}>
-        <Text size={sz.title} bold color={rc}>✦ {REALM_NAMES[p.realm - 1]} ✦</Text>
-        {art}
-        <Text size={sz.body} color={th.quote}>{p.cls} · {p.gender}</Text>
-      </Box>
-      {card('tu', '☯ Tu Luyện', th.title, [
+      {vis['tutien.portrait'] ? (
+        <Box flexDirection="column" alignItems="center" borderStyle="round" borderColor={rc} paddingX={1}>
+          <Text size={sz.title} bold color={rc}>✦ {REALM_NAMES[p.realm - 1]} ✦</Text>
+          {art}
+          <Text size={sz.body} color={th.quote}>{p.cls} · {p.gender}</Text>
+        </Box>
+      ) : null}
+      {vis['tutien.tu'] ? card('tu', '☯ Tu Luyện', th.title, [
         <Text key="st" size={sz.body} color={toneOf(p, now)}>{stateIcon(p)} {statusText(p, now)}</Text>,
         <Text key="ln" size={sz.body} italic color={th.quote}>💬 {line}</Text>,
         ...(inf && (inf.streak || inf.linhCan || inf.cpPoints) ? [
@@ -396,12 +410,12 @@ export async function renderPane($: any, e: any) {
           <Text size={sz.body} color="subtle">{m.rest}</Text>
           <Text size={sz.body} bold color={rc}> {pct}%</Text>
         </Box>,
-      ])}
-      {!compact && quest.length ? card('nv', '📜 Nhiệm Vụ', '#4fc3f7', quest) : null}
-      {!compact && lines.length ? card('bxh', '🏆 Bảng Tu Vi', '#ffd54f', lines.map(l => (
+      ]) : null}
+      {!compact && vis['tutien.quest'] && quest.length ? card('nv', '📜 Nhiệm Vụ', '#4fc3f7', quest) : null}
+      {!compact && vis['tutien.board'] && lines.length ? card('bxh', '🏆 Bảng Tu Vi', '#ffd54f', lines.map(l => (
         <Text key={`b-${l.text}`} size={sz.body} color={l.mine ? th.mine : rankColor(l.rank)} bold={l.mine || l.rank <= 3}>{l.text}</Text>
       ))) : null}
-      {inf?.kyNgo ? card('kn', '🎲 Kỳ Ngộ', '#56d4dd', [
+      {inf?.kyNgo && vis['tutien.kyngo'] ? card('kn','🎲 Kỳ Ngộ', '#56d4dd', [
         <Text key="kt" size={sz.body} bold color="#56d4dd">{inf.kyNgo.title}</Text>,
         e.surface !== 'terminal' && Svg
           ? <Svg key="ks" alt={inf.kyNgo.title} width={360} height={180} source={kyNgoScene(inf.kyNgo.id)} />
@@ -415,9 +429,15 @@ export async function renderPane($: any, e: any) {
         ) : <Text key="kh" size={sz.body} dimColor>/tutien ky-ngo a · /tutien ky-ngo b</Text>,
       ]) : null}
       {out ? outCard($.ui.resolve(e), $, out, sz.body) : null}
-      {Button ? (
+      {Button && vis['tutien.quick'] ? (
         <Box flexDirection="row" flexWrap="wrap" gap={1}>
           {QUICK.map(q => <Button key={`quick:${q.arg}`} onPress={() => runQuick($, q.arg)}>{q.label}</Button>)}
+        </Box>
+      ) : null}
+      {Button ? (
+        <Box flexDirection="row" flexWrap="wrap" gap={1}>
+          {VIS.map(v => <Button key={`vis:${v.key}`} onPress={() => void toggleSetting($, v.key, vis[v.key])}>{vis[v.key] ? '✓' : '✗'} {v.label}</Button>)}
+          <Button key="vis:compact" onPress={() => void toggleSetting($, 'tutien.compact', compact)}>{compact ? '✓' : '✗'} Gọn</Button>
         </Box>
       ) : null}
     </Box>
