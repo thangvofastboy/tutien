@@ -30,8 +30,40 @@ export const MORE_HELP = [
   '/tutien be-quan <ngày> · be-quan xuat-quan',
   '/tutien cho · mua <món> · trang-bi <món> · doi-phap-bao <e|t|d>',
   '/tutien lien-ket · dang-nhap <tên> <mã> dùng chung nhân vật trên máy khác (cùng tài khoản Claude)',
+  '/tutien dang-nhap-xong                  kiểm tra lại lần liên kết bị mất kết nối giữa chừng',
   '/tutien doi-ten <tên mới>               đổi tên nhân vật (7 ngày một lần)',
 ].join('\n')
+
+// Liên kết đang dở (mất phản hồi khi gộp): nhân vật cũ đã bị xóa thì gộp đã xong, chuyển sang khóa mới;
+// nhân vật cũ còn thì gộp chưa chạy, giữ khóa cũ. Không hỏi được server thì để lần sau.
+type PendingLink = { name: string; key: string; oldName: string; oldKey: string }
+async function settleLink($: any, p: PendingLink): Promise<'merged' | 'kept' | 'unknown'> {
+  const res = await $.http.fetch(`${SERVER}/me?name=${encodeURIComponent(p.oldName)}`, {
+    method: 'GET',
+    headers: {
+      authorization: `Bearer ${p.oldKey}`,
+      'x-tutien-version': String((await $.store.get('tutien.version')) ?? ''),
+      'x-tutien-account': String((await $.store.get('tutien.account')) ?? ''),
+    },
+  }).catch(() => null)
+  if (!res || res.status === 426 || res.status >= 500) return 'unknown'
+  if (res.ok) {
+    await $.store.set('tutien.key', p.oldKey)
+    await $.store.set('tutien.name', p.oldName)
+    return 'kept'
+  }
+  await $.store.set('tutien.key', p.key)
+  await $.store.set('tutien.name', p.name)
+  return 'merged'
+}
+export async function resolvePendingLink($: any): Promise<string | null> {
+  const p = (await $.store.get('tutien.pendingLink')) as PendingLink | undefined
+  if (!p?.key) return null
+  const r = await settleLink($, p)
+  if (r === 'unknown') return `⏳ Vẫn chưa hỏi được server về lần gộp ${p.oldName} → ${p.name}. Thử lại sau: /tutien dang-nhap-xong`
+  await $.store.set('tutien.pendingLink', null)
+  return r === 'merged' ? `🔗 Đã xác nhận: ${p.oldName} đã gộp vào ${p.name}. Máy này giờ dùng ${p.name}.` : `🔗 Lần gộp ${p.oldName} → ${p.name} chưa chạy; máy này vẫn dùng ${p.oldName}.`
+}
 
 export async function statusText($: any): Promise<string> {
   const r = await callServer<{ player: Player; status: any; social: any }>($, '/status')
@@ -150,14 +182,32 @@ export async function runMore($: any, sub: string, rest: string[], tail: string)
           },
           body: JSON.stringify({ into: name, intoKey: data.key }),
         }).catch(() => null)
-        const out = m?.ok ? JSON.parse(m.text || '{}') : null
-        // Gộp hỏng: giữ khóa của nhân vật cũ trên máy này (không thì mất hẳn quyền vào nhân vật cũ).
-        if (!out) return `⚠️ Chưa gộp được nhân vật cũ ${oldName} vào ${name}; máy này vẫn dùng ${oldName}. Tạo mã mới bằng /tutien lien-ket trên máy kia rồi gõ lại /tutien dang-nhap.`
-        merged = `\n➕ Đã gộp nhân vật cũ ${oldName} vào ${name} (+${out.gained} EXP, cộng cả linh thạch, pháp bảo, huy hiệu); nhân vật cũ đã xóa.`
+        if (m?.ok) {
+          const out = JSON.parse(m.text || '{}')
+          merged = `\n➕ Đã gộp nhân vật cũ ${oldName} vào ${name} (+${out.gained} EXP, cộng cả linh thạch, pháp bảo, huy hiệu); nhân vật cũ đã xóa.`
+        } else if (m) {
+          // Server trả lỗi: chưa gộp, giữ khóa nhân vật cũ (không thì mất hẳn quyền vào nhân vật cũ).
+          return `⚠️ Chưa gộp được nhân vật cũ ${oldName} vào ${name}; máy này vẫn dùng ${oldName}. Tạo mã mới bằng /tutien lien-ket trên máy kia rồi gõ lại /tutien dang-nhap.`
+        } else {
+          // Mất phản hồi: server có thể đã gộp xong. Hỏi lại nhân vật cũ còn hay không rồi mới chọn khóa.
+          const pending = { name, key: data.key, oldName, oldKey }
+          const r = await settleLink($, pending)
+          if (r === 'unknown') {
+            await $.store.set('tutien.pendingLink', pending)
+            return `⏳ Mất kết nối giữa chừng, chưa rõ đã gộp ${oldName} vào ${name} chưa. Máy này tạm dùng ${oldName}; lần mở phiên sau sẽ tự kiểm tra lại (hoặc gõ /tutien dang-nhap-xong).`
+          }
+          return r === 'merged'
+            ? `🔗 Đã liên kết. Máy này dùng chung nhân vật ${name}.\n➕ Đã gộp nhân vật cũ ${oldName} vào ${name}; nhân vật cũ đã xóa.`
+            : `⚠️ Chưa gộp được nhân vật cũ ${oldName} vào ${name}; máy này vẫn dùng ${oldName}. Tạo mã mới bằng /tutien lien-ket trên máy kia rồi gõ lại /tutien dang-nhap.`
+        }
       }
       await $.store.set('tutien.key', data.key)
       await $.store.set('tutien.name', name)
       return `🔗 Đã liên kết. Máy này dùng chung nhân vật ${name}.${merged}`
+    }
+    case 'dang-nhap-xong': {
+      const r = await resolvePendingLink($)
+      return r ?? 'Không có liên kết nào đang chờ kiểm tra.'
     }
     case 'doi-ten': {
       if (!tail) return 'Dùng: /tutien doi-ten <tên mới>'

@@ -191,3 +191,18 @@ test('gộp xong: tên cũ rời tông, đạo lữ, sư đồ; tông chủ cũ 
   assert.deepEqual(r.partners, {})
   assert.deepEqual(r.masters, {})
 })
+
+test('gộp lúc đang thiên phạt: EXP dư vào kho, độ kiếp xong thì rót dần vào bậc mới', () => {
+  const main = fresh()
+  main.player = { ...main.player, exp: need(1), trib: { startedAt: NOW, deadline: NOW + DAY, required: 10, earned: 0 } }
+  const old = { ...fresh(), player: { ...fresh().player, realm: 3, exp: 0 } }
+  const m = mergeStates(main, old)
+  assert.equal(m.player.realm, 1)
+  assert.equal(m.expBank, need(1) + need(2))
+  // Lượt kế: vượt thiên phạt → bậc 2, kho rót đủ trần bậc 2 → thiên phạt bậc 2 bắt đầu, còn lại need(1) trong kho.
+  const out = handleUsage(m, { turnId: 'k', tokens: 100 }, NOW, () => 0.99)
+  assert.ok(out.events.includes('breakthrough'))
+  assert.ok(out.events.includes('tribulation-started'))
+  assert.equal(out.state.player.realm, 2)
+  assert.equal(out.state.expBank, need(1))
+})

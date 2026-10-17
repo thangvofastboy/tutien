@@ -16,6 +16,7 @@ export type Features = {
   streakRun?: { day: string; n: number } // chuỗi ngày đếm liên tục (lịch sử chỉ giữ 90 ngày nên không đếm tới mốc 100)
   congPhap?: CongPhap
   teamWeek?: string // tuần đã báo Thiên Kiếp Đồng Tâm
+  expBank?: number // EXP gộp vào lúc đang thiên phạt, cộng dần sau mỗi lần độ kiếp xong
 }
 type St = { player: Player; linhThach?: number; inbox?: Extras['inbox']; pills?: Extras['pills']; history?: Record<string, Day>; badges?: string[] } & Features
 
@@ -249,4 +250,15 @@ export function duel(a: Fighter, b: Fighter, rng: () => number): { win: boolean;
 export function duelCount(st: Features, now: number): { day: string; n: number; wins: number; losses: number } {
   const day = vnDay(now)
   return st.luanDao?.day === day ? st.luanDao : { day, n: 0, wins: st.luanDao?.wins ?? 0, losses: st.luanDao?.losses ?? 0 }
+}
+
+// ---------- Kho EXP (gộp nhân vật lúc đang thiên phạt) ----------
+// Khi không thiên phạt: rót kho vào bậc hiện tại tới trần; đủ trần thì thiên phạt bắt đầu như thường.
+// Mỗi bậc vẫn phải độ kiếp, nên kho chỉ rót tiếp sau khi đột phá xong.
+export function releaseBank(p: Player, bank: number, now: number, x: Extra = {}): { p: Player; bank: number; events: string[] } {
+  if (bank <= 0 || p.trib) return { p, bank, events: [] }
+  const take = Math.min(bank, Math.max(0, need(p.realm) - p.exp))
+  if (take <= 0) return { p, bank, events: [] }
+  const r = applyUsage({ ...p, exp: p.exp + take }, 0, now, () => 0.99, x)
+  return { p: r.p, bank: bank - take, events: r.events }
 }

@@ -32,6 +32,7 @@ export type Status = {
   kyNgo?: { title: string } | null
   congPhap?: { points: number }
   luanDao?: { wins: number; losses: number }
+  expBank?: number
 }
 export type SocialInfo = {
   tong: { name: string; role: string; weekPct: number; paused: boolean } | null
@@ -72,6 +73,7 @@ export function statusLines(name: string, p: Player, s: Status | undefined, soc:
   if (s.streak) out.push(`🔥 Chuỗi tu luyện ${s.streak} ngày liên tục`)
   if (s.congPhap?.points) out.push(`📖 Còn ${s.congPhap.points} điểm công pháp: /tutien cong-phap`)
   if (s.kyNgo) out.push(`🎲 Kỳ ngộ đang chờ: ${s.kyNgo.title} → /tutien ky-ngo`)
+  if (s.expBank) out.push('🏦 Kho EXP từ lần gộp nhân vật: cộng dần vào bậc mới sau mỗi lần độ kiếp')
   if (soc?.event.active) out.push(`☯️ ${soc.event.name}: ${soc.event.desc}`)
   if (s.artifacts.length) out.push(`🎁 Pháp bảo: ${artifactNames(s.artifacts)}`)
   if (s.pills.bag.length || s.pills.active.length) out.push(`⚗️ Đan: ${[...s.pills.active.map(x => `${x} (đang dùng)`), ...s.pills.bag].join(', ')}`)

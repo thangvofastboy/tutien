@@ -9,7 +9,7 @@ import { refreshPane, renderPane, renderBand, renderSettings, renderStart, start
 import { PERSONAS, personaById, buildPersonaPrompt, parsePersonaLines } from './persona'
 import { PROLOGUE, unlockedChapters } from './story'
 import { startWeb, stopWeb } from './web'
-import { runMore, statusText as fullStatus, extraBoards, MORE_HELP } from './more'
+import { runMore, statusText as fullStatus, extraBoards, resolvePendingLink, MORE_HELP } from './more'
 import { runFeatures, trackTool, FEATURE_HELP } from './features'
 import { loadAccount, sessionNotes, breakReminder, reconcile, personaSection } from './session'
 
@@ -75,6 +75,9 @@ export const register: Register = on => {
     // và mất mạng thì không làm hỏng session.start.
     void (async () => {
       if ((await $.store.get('tutien.autoupdate')) === 'on') await runUpdate($).catch(() => null)
+      // Liên kết dở từ lần trước (mất phản hồi khi gộp): chọn đúng khóa trước khi gửi lượt nào.
+      const linked = await resolvePendingLink($).catch(() => null)
+      if (linked) $.ui.log(linked)
       await flushUsage($).catch(() => null)
       await refreshPane($).catch(() => null)
       await logGreeting($).catch(() => null)

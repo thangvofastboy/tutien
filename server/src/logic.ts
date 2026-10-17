@@ -7,7 +7,7 @@ import {
   QUEST_TOKENS, PILLS, BADGES, giftStep, type Extras,
 } from './extras.ts'
 import { vnDay, holidayOn, holidayTarget } from '../../hooks/holidays.ts'
-import { featureExtra, streakStep, streakDays, maybeKyNgo, congPhapOf, kyNgoView, duelCount, treeView, LINH_CAN, type Features } from './features.ts'
+import { featureExtra, releaseBank, streakStep, streakDays, maybeKyNgo, congPhapOf, kyNgoView, duelCount, treeView, LINH_CAN, type Features } from './features.ts'
 import { cpEffects } from './congphap.ts'
 
 export const SEEN_LIMIT = 1000
@@ -90,6 +90,14 @@ export function handleUsage(
   const x: Extra = sumExtra(body.ctx ?? {}, pillExtra(st.pills, now), featureExtra(st))
   const closed = inBeQuan(st.beQuan, now)
   let { p, events }: { p: Player; events: string[] } = closed ? { p: p0, events: [] } : applyUsage(p0, tokens, now, rng, x)
+  // Kho EXP từ lần gộp: rót vào khi không thiên phạt (kể cả ngay sau khi vừa đột phá).
+  let expBank = st.expBank ?? 0
+  if (!closed && expBank > 0 && suspicion < FLAG_AT) {
+    const b = releaseBank(p, expBank, now, x)
+    p = b.p
+    expBank = b.bank
+    events = [...events, ...b.events]
+  }
   // Bị đánh dấu: EXP vẫn tính nhưng không vào thiên phạt, không lên bậc.
   if (suspicion >= FLAG_AT && (p.realm !== st.player.realm || (p.trib && !st.player.trib))) {
     p = { ...st.player, exp: Math.min(need(st.player.realm) - 1, st.player.exp + Math.floor(tokens / 1000)) }
@@ -169,6 +177,7 @@ export function handleUsage(
     recent,
     lastAt: now,
     tamma,
+    expBank: expBank || undefined,
   }
   // Tính năng mới: chuỗi ngày, kỳ ngộ, điểm công pháp khi đột phá, tin Thiên Kiếp Đồng Tâm.
   let after: State = next
@@ -366,6 +375,7 @@ export function statusOf(st: State, now: number) {
     kyNgo: kyNgoView(st, now),
     congPhap: treeView(st),
     luanDao: duelCount(st, now),
+    expBank: st.expBank ?? 0,
   }
 }
 
@@ -390,8 +400,9 @@ export function mergeStates(main: State, old: State): State {
   const pendingTotal = mp.pending + old.player.pending
   let realm = mp.realm
   let exp = mp.exp + cumulativeExp(old.player) + Math.floor(pendingTotal / TOKENS_PER_EXP)
-  // Đang thiên phạt thì không nhảy bậc: EXP dừng ở trần của bậc hiện tại.
-  if (mp.trib) exp = Math.min(exp, need(realm))
+  // Đang thiên phạt thì không nhảy bậc: EXP dừng ở trần, phần dư vào kho, cộng dần sau mỗi lần độ kiếp.
+  let bank = main.expBank ?? 0
+  if (mp.trib) { bank += Math.max(0, exp - need(realm)); exp = Math.min(exp, need(realm)) }
   else while (realm < REALM_COUNT && exp >= need(realm)) { exp -= need(realm); realm++ }
   if (realm >= REALM_COUNT) exp = Math.min(exp, need(realm))
   const history: Record<string, { t: number; e: number; q?: boolean; ev?: Record<string, number> }> = { ...(main.history ?? {}) }
@@ -408,6 +419,7 @@ export function mergeStates(main: State, old: State): State {
   return {
     ...main,
     player,
+    expBank: bank || undefined,
     congPhap: { ...cp, points: cp.points + (realm - mp.realm) },
     lifetimeTokens: main.lifetimeTokens + old.lifetimeTokens,
     deaths: main.deaths + old.deaths,

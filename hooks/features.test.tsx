@@ -157,3 +157,22 @@ test('dang-nhap: gộp hỏng thì máy vẫn giữ khóa nhân vật cũ', asyn
   expect((await $.command.run(RUN('dang-nhap Main ABCD2345'))).text).toMatch(/vẫn dùng Old/)
   expect((await $.command.run(RUN('lien-ket'))).text).not.toMatch(/Main/) // vẫn đăng nhập bằng Old
 })
+
+test('dang-nhap: mất phản hồi khi gộp, nhân vật cũ đã bị xóa thì chuyển sang khóa mới', async ($, on) => {
+  mock.store(on)
+  let merged = false
+  on('http.fetch', async (_$: any, e: any) => {
+    const url = String(e.url)
+    if (url.includes('/register')) return reply(200, { key: 'old-key' })
+    if (url.includes('/link-code')) return reply(200, { code: 'X', minutes: 1440 })
+    if (url.includes('/link')) return reply(200, { key: 'main-key' })
+    if (url.includes('/merge')) { merged = true; throw new Error('mất mạng') }
+    if (url.includes('/me?name=Old')) return merged ? reply(401, { error: 'unauthorized' }) : reply(200, { player: newPlayer('Kiếm Tu', 'Nam') })
+    return reply(200, { player: newPlayer('Kiếm Tu', 'Nam'), status: {}, social: {} })
+  })
+  on('fs.read', async () => ({ value: { base64: 'iVBORw0KGgo=' } }) as any)
+  await $.command.run(RUN('register Old "Kiếm Tu" Nam'))
+  expect((await $.command.run(RUN('dang-nhap Main ABCD2345'))).text).toMatch(/Đã gộp nhân vật cũ Old vào Main/)
+  expect((await $.command.run(RUN('lien-ket'))).text).toMatch(/dang-nhap Main/)
+  expect((await $.command.run(RUN('dang-nhap-xong'))).text).toMatch(/Không có liên kết nào/)
+})
