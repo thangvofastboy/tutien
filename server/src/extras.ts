@@ -46,6 +46,9 @@ export const BADGES: Record<string, { name: string; desc: string }> = {
   'chuyen-can-30': { name: 'Chuyên Cần', desc: '30 ngày liên tục có tu luyện' },
   'diet-tam-ma': { name: 'Diệt Tâm Ma', desc: 'Xua đuổi Tâm Ma Trễ Deadline 10 lần' },
   'nhiem-vu-10': { name: 'Chăm Làm Nhiệm Vụ', desc: 'Hoàn thành 10 nhiệm vụ ngày' },
+  'dao-tam': { name: 'Đạo Tâm Bất Diệt', desc: '100 ngày liên tục có tu luyện' },
+  'vo-dich': { name: 'Luận Đạo Vô Địch', desc: 'Thắng 10 trận luận đạo' },
+  'co-duyen': { name: 'Cơ Duyên Thâm Hậu', desc: 'Trải qua 10 lần kỳ ngộ' },
 }
 export const ARTIFACTS: Record<Artifact, { name: string; desc: string }> = {
   e: { name: 'Tụ Linh Bình', desc: '+0,5% EXP' },

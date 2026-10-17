@@ -1,16 +1,18 @@
 /// <reference types="@cloudflare/workers-types" />
 // Durable Object một người chơi: giữ State, áp luật qua logic.ts và extras.ts.
-import { handleUsage, handleGift, handleReset, renameLock, row, recordFail, verifyDecision, settleState, statusOf, historyOf, type State } from './logic.ts'
+import { mergeStates, cumulativeExp, handleUsage, handleGift, handleReset, renameLock, row, recordFail, verifyDecision, settleState, statusOf, historyOf, type State } from './logic.ts'
 import {
   bicanhJoin, craftPill, usePill, beQuanStart, beQuanEnd, sellArtifact, buyItem, SHOP, pushInbox, reconcileStep,
   type Pill,
 } from './extras.ts'
+import { cpEffects } from './congphap.ts'
+import { resolveKyNgo, learn, resetCongPhap, duel, duelCount, isLinhCan, LUAN_DAO_PER_DAY, LUAN_DAO_WIN, type Fighter } from './features.ts'
 import { CLASSES as C, GENDERS as G, type Artifact } from '../../hooks/rules.ts'
 
 const CLASSES: readonly string[] = C
 const GENDERS: readonly string[] = G
 const MAX_DEVICES = 5
-const LINK_MS = 10 * 60_000
+export const LINK_MS = 24 * 60 * 60_000
 const LINK_TRIES = 5
 
 export class PlayerDO {
@@ -86,6 +88,13 @@ export class PlayerDO {
     // Đang đổi tên: chỉ cho đọc và các route của chính quá trình đổi tên.
     if (st.renaming !== undefined && st.renaming > now && req.method === 'POST' && url.pathname !== '/wipe' && url.pathname !== '/verify') {
       return bad('Nhân vật đang đổi tên, thử lại sau một phút.', 409)
+    }
+    // Gộp nhân vật cũ của cùng tài khoản vào nhân vật này.
+    if (url.pathname === '/absorb') {
+      const from = body.state as State
+      if (!st.accountHash || from?.accountHash !== st.accountHash) return bad('Hai nhân vật không cùng tài khoản Claude.', 403)
+      await save(mergeStates(st, from))
+      return ok({ ok: true, gained: cumulativeExp(from.player) })
     }
     if (url.pathname === '/export') return ok({ state: st })
     if (url.pathname === '/wipe') {
@@ -173,7 +182,38 @@ export class PlayerDO {
       return bad('Thao tác chợ: sell, buy, equip.')
     }
     if (url.pathname === '/profile') {
-      await save({ ...st, persona: typeof body.persona === 'string' ? body.persona.slice(0, 40) : st.persona })
+      await save({ ...st, persona: typeof body.persona === 'string' ? body.persona.slice(0, 40) : st.persona, linhCan: isLinhCan(body.linhCan) ? body.linhCan : st.linhCan })
+      return ok({ ok: true })
+    }
+    if (url.pathname === '/ky-ngo') {
+      const r = resolveKyNgo(st, String(body.choice ?? ''), now, Math.random)
+      if (r.error) return bad(r.error)
+      const next = { ...st, ...r.state }
+      await save(next)
+      return ok({ text: r.text, events: r.events, player: next.player })
+    }
+    if (url.pathname === '/cong-phap') {
+      const r: { congPhap?: State['congPhap']; linhThach?: number; error?: string; text?: string } =
+        body.action === 'tay-tuy' ? resetCongPhap(st) : learn(st, String(body.id ?? ''))
+      if (r.error) return bad(r.error)
+      await save({ ...st, congPhap: r.congPhap, linhThach: r.linhThach ?? st.linhThach })
+      return ok({ text: r.text })
+    }
+    // Luận đạo (Worker gọi, đã có hồ sơ hai bên): đếm lượt, tung kết quả, thưởng người thắng nếu là mình.
+    if (url.pathname === '/duel') {
+      const c = duelCount(st, now)
+      if (c.n >= LUAN_DAO_PER_DAY) return bad(`⏳ Hôm nay đã luận đạo ${LUAN_DAO_PER_DAY} trận rồi. Mai quay lại, kẻo đối thủ ám ảnh.`)
+      const r = duel(body.a as Fighter, body.b as Fighter, Math.random)
+      const gain = r.win ? LUAN_DAO_WIN + cpEffects(st).lt : 0
+      const wins = c.wins + (r.win ? 1 : 0)
+      let badges = st.badges ?? []
+      if (wins >= 10 && !badges.includes('vo-dich')) badges = [...badges, 'vo-dich']
+      await save({ ...st, badges, linhThach: (st.linhThach ?? 0) + gain, luanDao: { day: c.day, n: c.n + 1, wins, losses: c.losses + (r.win ? 0 : 1) } })
+      return ok({ win: r.win, log: [...r.log, r.win ? `💎 +${gain} linh thạch` : '💎 Không mất gì, chỉ mất chút sĩ diện.'] })
+    }
+    if (url.pathname === '/linh-thach') {
+      const delta = Math.max(0, Math.min(50, Number(body.delta) || 0))
+      await save({ ...st, linhThach: (st.linhThach ?? 0) + delta, inbox: body.text ? pushInbox(st.inbox, String(body.text).slice(0, 300), now) : st.inbox })
       return ok({ ok: true })
     }
     if (url.pathname === '/reconcile') {

@@ -20,7 +20,7 @@ test('hiệu ứng thiên phạt theo sự kiện', () => {
   expect(tribEffect('breakthrough')).toEqual({ kind: 'gold', ms: 1500 })
   expect(tribEffect('tribulation-failed')).toEqual({ kind: 'rain', ms: 3000 })
   expect(tribEffect('death')).toEqual({ kind: 'red', ms: 1000 })
-  expect(tribEffect('artifact')).toBe(null)
+  expect(tribEffect('artifact')).toEqual({ kind: 'treasure', ms: 1500 })
 })
 
 import { overlayFrame, effectActive } from './effects'

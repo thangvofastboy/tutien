@@ -6,13 +6,16 @@ import { tribEffect, overlayFrame, effectActive } from './effects'
 import { paneLine } from './persona'
 import { bandLines } from './band'
 import { realmColor, gradientRuns, meter, rankColor, EVENT_BANNERS } from './look'
-import { SETTINGS, PANEL_BG, THEMES, TEXT_SIZES, withDefaults } from './settings'
+import { SETTINGS, COMMAND_GROUPS, OPEN_COMMANDS, type Setting, PANEL_BG, THEMES, TEXT_SIZES, withDefaults } from './settings'
 import { STEPS, STEP_STYLE, initWizard, advance, type Wizard } from './start'
 import { PROLOGUE, CLASS_ORIGINS, STARTER_QUESTS } from './story'
 import { CLASSES, GENDERS } from './rules'
 import { PERSONAS, personaById } from './persona'
 import { webRunning, writeWebState } from './web'
 import { greetingLines, eventLines } from './chat'
+import { lineColor } from './features'
+import { fxSvg, kyNgoScene, KY_NGO_ASCII, type FxKind } from './art'
+import { runTutien } from './register'
 
 const PANE = 'tu-tien'
 export const me = atom({ plugin: 'tutien', key: 'me' } as const, undefined as Player | undefined)
@@ -22,8 +25,20 @@ const tick = atom({ plugin: 'tutien', key: 'tick' } as const, 0)
 export type BoardRow = { rank: number; name: string; cls: string; realm: number; score: number }
 const board = atom({ plugin: 'tutien', key: 'board' } as const, [] as BoardRow[])
 // Nhiệm vụ ngày, bí cảnh, Tâm Ma, tông (spec 18.4): dòng phụ trong pane.
-type Info = { quest: number; bicanh: string | null; tamma: number | null; tong: string | null }
+type Info = {
+  quest: number; bicanh: string | null; tamma: number | null; tong: string | null
+  streak?: number; linhCan?: { name: string; icon: string } | null; cpPoints?: number
+  kyNgo?: { id: string; title: string; desc: string; a: string; b: string } | null
+}
 const info = atom({ plugin: 'tutien', key: 'info' } as const, null as Info | null)
+// Kết quả nút lệnh nhanh: hiện ngay trong panel (không chỉ trong khung chat).
+type Action = { label: string; arg: string }
+type Out = { title: string; text: string; card?: string; actions?: Action[] }
+const quickOut = atom({ plugin: 'tutien', key: 'quickOut' } as const, null as Out | null)
+// Hiện kết quả trong thẻ của panel và pane Cài đặt; `card` là SVG (thẻ khoe nhân vật).
+export async function showOut($: any, title: string, text: string, card?: string, actions?: Action[]): Promise<void> {
+  await update($, quickOut, () => ({ title, text, card, actions }))
+}
 const settingsTick = atom({ plugin: 'tutien', key: 'settingsTick' } as const, 0)
 const wizard = atom({ plugin: 'tutien', key: 'wizard' } as const, { step: 0 } as Wizard)
 const wizardError = atom({ plugin: 'tutien', key: 'wizardError' } as const, null as string | null)
@@ -92,8 +107,33 @@ export async function logGreeting($: any): Promise<void> {
 
 // Ảnh bậc: assets/realms/<lớp>/<giới>/NN-F.png (khung 1). Khung hào quang được chọn theo đồng hồ.
 // Ảnh nhân vật cho bề mặt không có Raster: PNG nhúng trong SVG, giữ nét pixel khi phóng to.
-export const svgSprite = (b64: string) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="192" height="192"><image href="data:image/png;base64,${b64}" width="96" height="96" style="image-rendering:pixelated"/></svg>`
+// smooth: phóng to có làm mịn (nội suy) thay vì giữ nét pixel; size: cạnh ảnh theo px.
+// Pane vẽ lại mỗi 250 ms khi có hiệu ứng: giữ lại SVG vừa dựng (ảnh tự chọn có thể tới 1,4 MB base64).
+let lastSprite: { b64: string; smooth: boolean; size: number; svg: string } | null = null
+function spriteOf(b64: string, smooth: boolean, size: number): string {
+  if (lastSprite && lastSprite.b64 === b64 && lastSprite.smooth === smooth && lastSprite.size === size) return lastSprite.svg
+  lastSprite = { b64, smooth, size, svg: svgSprite(b64, smooth, size) }
+  return lastSprite.svg
+}
+export const svgSprite = (b64: string, smooth = false, size = 192) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="${size}" height="${size}"><image href="data:image/png;base64,${b64}" width="96" height="96" style="image-rendering:${smooth ? 'auto' : 'pixelated'}"/></svg>`
+// Cỡ ảnh theo bội nguyên của 96 px nên giữ nét; 'to' lấp gần hết bề ngang panel.
+export const ART_SIZES: Record<string, number> = { vua: 192, lon: 288, to: 384 }
+
+// Ảnh nhân vật tự chọn (/tutien hinh): dùng chung mọi bậc, chỉ lưu trên máy này.
+// Svg dùng base64 lưu trong store; chế độ Image đọc lại file gốc nếu còn.
+export const AVATAR_MAX_B64 = 1_400_000
+export const isPngBase64 = (b64: unknown): b64 is string => typeof b64 === 'string' && b64.startsWith('iVBORw0KGgo') && b64.length <= AVATAR_MAX_B64
+async function avatarOf($: any): Promise<{ b64: string; file: string | null } | null> {
+  const [b64, file] = await Promise.all([$.store.get('tutien.avatar'), $.store.get('tutien.avatarFile')])
+  return isPngBase64(b64) ? { b64, file: typeof file === 'string' ? file : null } : null
+}
+export async function setAvatar($: any, b64: string | null, file: string | null): Promise<void> {
+  await $.store.set('tutien.avatar', b64)
+  await $.store.set('tutien.avatarFile', file)
+  artCache.clear() // bỏ kết quả stat cũ của file ảnh
+  await update($, settingsTick, (n: number) => n + 1)
+}
 
 export const realmImage = (root: string, p: Player) =>
   `${root}/assets/realms/${p.cls}/${p.gender}/${String(p.realm).padStart(2, '0')}.png`
@@ -173,7 +213,11 @@ export async function refreshPane($: any): Promise<void> {
   ])
   if (res?.ok && res.data?.status) {
     const s = res.data.status
-    await update($, info, () => ({ quest: s.quest?.pct ?? 0, bicanh: s.bicanh ?? null, tamma: s.tamma?.pct ?? null, tong: res.data!.social?.tong?.name ?? null }))
+    await update($, info, () => ({
+      quest: s.quest?.pct ?? 0, bicanh: s.bicanh ?? null, tamma: s.tamma?.pct ?? null, tong: res.data!.social?.tong?.name ?? null,
+      streak: s.streak ?? 0, linhCan: s.linhCan ? { name: s.linhCan.name, icon: s.linhCan.icon } : null, cpPoints: s.congPhap?.points ?? 0,
+      kyNgo: s.kyNgo ? { id: s.kyNgo.id, title: s.kyNgo.title, desc: s.kyNgo.desc, a: s.kyNgo.a, b: s.kyNgo.b } : null,
+    }))
   }
   if (top?.ok) {
     let rows: BoardRow[] = []
@@ -208,10 +252,47 @@ const QUICK = [
   { arg: 'top', label: '🏆 Bảng xếp hạng' },
   { arg: 'history', label: '📊 Lịch sử' },
   { arg: 'team', label: '👥 Team' },
+  { arg: 'chuoi', label: '🔥 Chuỗi ngày' },
+  { arg: 'cong-phap', label: '📖 Công pháp' },
+  { arg: 'the', label: '🪪 Thẻ khoe' },
   { arg: 'setting', label: '⚙️ Cài đặt' },
 ]
-function runQuick($: any, arg: string) {
-  void $.command.run({ command: 'tutien', args: arg }).catch(() => undefined)
+function runQuick($: any, arg: string, label?: string) {
+  void (async () => {
+    const title = label ?? QUICK.find(q => q.arg === arg)?.label ?? arg
+    const opens = OPEN_COMMANDS.includes(arg)
+    if (!opens) await update($, quickOut, () => ({ title, text: '⏳ Đang tải…' }))
+    // Gọi thẳng hàm xử lý /tutien, không đi vòng qua $.command.run.
+    const r = await runTutien($, arg).catch(() => undefined)
+    if (opens) return // mở pane khác
+    const text = String(r?.text ?? '').trim() || 'Không có dữ liệu.'
+    // Lệnh đã tự hiện thẻ (kèm ảnh) thì giữ nguyên.
+    await update($, quickOut, (cur: any) => ((cur?.card || cur?.actions) && cur.text === text ? cur : { title, text }))
+  })()
+}
+
+// Thẻ kết quả: mỗi dòng tô màu theo icon đầu dòng, có ảnh nếu là thẻ khoe.
+function outCard(els: any, $: any, out: Out, size?: string) {
+  const { Box, Text, Button, Svg } = els
+  return (
+    <Box key="out" flexDirection="column" borderStyle="round" borderColor="#79c0ff" paddingX={1}>
+      <Text size={size} bold color="#79c0ff">{out.title}</Text>
+      {out.card && Svg ? <Svg key="card" alt={out.title} width={360} height={192} source={out.card} /> : null}
+      {out.text.split('\n').map((t, i) => <Text key={`o-${i}`} size={size} color={lineColor(t)}>{t || ' '}</Text>)}
+      {Button ? (
+        <Box key="out-btns" flexDirection="row" flexWrap="wrap" gap={1}>
+          {(out.actions ?? []).map(a => <Button key={`act:${a.arg}`} onPress={() => runQuick($, a.arg, out.title)}>{a.label}</Button>)}
+          <Button key="out-close" onPress={() => void update($, quickOut, () => null)}>✖ Đóng</Button>
+        </Box>
+      ) : null}
+    </Box>
+  )
+}
+
+// Hiệu ứng nào có khung SVG: các hiệu ứng mới, và thiên phạt cũ mượn khung gần giống.
+const FX_SVG_OF: Record<string, FxKind | undefined> = {
+  kyngo: 'kyngo', sparkle: 'sparkle', fire: 'fire', meteor: 'meteor', scroll: 'scroll', ult: 'ult', win: 'win', lose: 'lose', treasure: 'treasure', badge: 'badge',
+  gold: 'ult', lightning: 'meteor', rain: 'lose',
 }
 
 export async function renderPane($: any, e: any) {
@@ -221,8 +302,16 @@ export async function renderPane($: any, e: any) {
 
   const alt = `${REALM_NAMES[p.realm - 1]} (${p.cls}, ${p.gender})`
   const fx = await read($, effect)
+  const t = await read($, tick)
+  // Terminal: một dòng chữ chạy theo nhịp. Desktop, web, điện thoại: thêm khung hoạt ảnh SVG (hạt bay, sao băng, lửa).
+  const fxArt = fx && e.surface !== 'terminal' && Svg ? FX_SVG_OF[fx.kind] : undefined
   const overlay = effectActive(fx, Date.now()) && fx
-    ? <Text>{overlayFrame(fx.kind as any, await read($, tick))}</Text>
+    ? (
+      <Box key="fx" flexDirection="column" alignItems="center">
+        {fxArt ? <Svg key={`fx-${t % 12}`} alt={fx.kind} width={360} height={180} source={fxSvg(fxArt, t)} /> : null}
+        <Text>{overlayFrame(fx.kind as any, t)}</Text>
+      </Box>
+    )
     : null
   const active = effectActive(fx, Date.now()) ? fx!.kind : null
   await read($, settingsTick) // đổi cài đặt thì vẽ lại ngay
@@ -238,15 +327,21 @@ export async function renderPane($: any, e: any) {
     Math.floor(Date.now() / 60_000),
   )
   const mode = displayMode(display)
+  const custom = await avatarOf($)
+  const [artSize, smooth] = await Promise.all([setting($, 'tutien.artsize'), setting($, 'tutien.artsmooth')])
+  const artPx = ART_SIZES[artSize ?? ''] ?? ART_SIZES.vua
   let art: any = <Text>{alt}</Text>
   if (mode !== 'text' && e.surface !== 'terminal' && Svg) {
     // Claude Code Desktop và app điện thoại không vẽ Raster/Image (chỉ là fragment rỗng): vẽ ảnh PNG qua Svg.
     const file = realmImage($.plugin.root, p)
-    const b64 = await cachedRead(`png:${file}`, () => $.fs.read(file, { as: 'bytes' }).then((x: any) => x?.base64 ?? null, () => null))
-    if (b64) art = <Svg key="realm" alt={alt} width={192} height={192} source={svgSprite(b64)} />
-  } else if (mode === 'image' && Image) {
-    const file = realmImage($.plugin.root, p)
-    if (await cachedRead(`stat:${file}`, () => $.fs.stat(file).then(() => 'ok', () => null))) {
+    const b64 = custom?.b64 ?? await cachedRead(`png:${file}`, () => $.fs.read(file, { as: 'bytes' }).then((x: any) => x?.base64 ?? null, () => null))
+    if (b64) art = <Svg key="realm" alt={alt} width={artPx} height={artPx} source={spriteOf(b64, smooth === 'on', artPx)} />
+  } else if ((mode === 'image' || (mode === 'raster' && custom?.file)) && Image) {
+    // Ảnh tự chọn không có bản ô màu, nên terminal có Image thì vẽ ảnh thật.
+    const file0 = custom?.file
+    const own = file0 && (await cachedRead(`stat:${file0}`, () => $.fs.stat(file0).then(() => 'ok', () => null))) ? file0 : null
+    const file = own ?? realmImage($.plugin.root, p)
+    if (own || await cachedRead(`stat:${file}`, () => $.fs.stat(file).then(() => 'ok', () => null))) {
       art = <Image key="realm" source={{ file, format: 'png' }} columns={24} rows={12} alt={alt} />
     }
   } else if (mode === 'raster' && Raster) {
@@ -258,6 +353,7 @@ export async function renderPane($: any, e: any) {
   const bg = PANEL_BG[panelbg ?? 'terminal']
   const compact = compactSetting === 'on'
   const inf = await read($, info)
+  const out = await read($, quickOut)
   const lines = boardLines(await read($, board), ((await $.store.get('tutien.name')) as string | undefined) ?? '')
   const now = Date.now()
   const rc = realmColor(p.realm)
@@ -287,6 +383,13 @@ export async function renderPane($: any, e: any) {
       {card('tu', '☯ Tu Luyện', th.title, [
         <Text key="st" size={sz.body} color={toneOf(p, now)}>{stateIcon(p)} {statusText(p, now)}</Text>,
         <Text key="ln" size={sz.body} italic color={th.quote}>💬 {line}</Text>,
+        ...(inf && (inf.streak || inf.linhCan || inf.cpPoints) ? [
+          <Box key="ft" flexDirection="row" flexWrap="wrap" gap={1}>
+            {inf.streak ? <Text size={sz.body} color="#ffa657">{inf.streak >= 7 ? '🔥🔥' : '🔥'} {inf.streak} ngày</Text> : null}
+            {inf.linhCan ? <Text size={sz.body} color="#d2a8ff">{inf.linhCan.icon} {inf.linhCan.name}</Text> : null}
+            {inf.cpPoints ? <Text size={sz.body} color="#ffd54f">📖 {inf.cpPoints} điểm công pháp</Text> : null}
+          </Box>,
+        ] : []),
         <Box key="mt" flexDirection="row">
           <Text size={sz.body} dimColor>📈 Tiến độ bậc: </Text>
           <Text size={sz.body} color={rc}>{m.filled}</Text>
@@ -298,6 +401,20 @@ export async function renderPane($: any, e: any) {
       {!compact && lines.length ? card('bxh', '🏆 Bảng Tu Vi', '#ffd54f', lines.map(l => (
         <Text key={`b-${l.text}`} size={sz.body} color={l.mine ? th.mine : rankColor(l.rank)} bold={l.mine || l.rank <= 3}>{l.text}</Text>
       ))) : null}
+      {inf?.kyNgo ? card('kn', '🎲 Kỳ Ngộ', '#56d4dd', [
+        <Text key="kt" size={sz.body} bold color="#56d4dd">{inf.kyNgo.title}</Text>,
+        e.surface !== 'terminal' && Svg
+          ? <Svg key="ks" alt={inf.kyNgo.title} width={360} height={180} source={kyNgoScene(inf.kyNgo.id)} />
+          : <Box key="ka" flexDirection="column">{(KY_NGO_ASCII[inf.kyNgo.id] ?? []).map((l, i) => <Text key={`ka-${i}`} color="#56d4dd">{l}</Text>)}</Box>,
+        <Text key="kd" size={sz.body} italic>{inf.kyNgo.desc}</Text>,
+        Button ? (
+          <Box key="kb" flexDirection="row" flexWrap="wrap" gap={1}>
+            <Button key="kyngo:a" onPress={() => runQuick($, 'ky-ngo a', inf.kyNgo!.title)}>🅰️ {inf.kyNgo.a}</Button>
+            <Button key="kyngo:b" onPress={() => runQuick($, 'ky-ngo b', inf.kyNgo!.title)}>🅱️ {inf.kyNgo.b}</Button>
+          </Box>
+        ) : <Text key="kh" size={sz.body} dimColor>/tutien ky-ngo a · /tutien ky-ngo b</Text>,
+      ]) : null}
+      {out ? outCard($.ui.resolve(e), $, out, sz.body) : null}
       {Button ? (
         <Box flexDirection="row" flexWrap="wrap" gap={1}>
           {QUICK.map(q => <Button key={`quick:${q.arg}`} onPress={() => runQuick($, q.arg)}>{q.label}</Button>)}
@@ -329,7 +446,24 @@ export function choice(els: any, c: { key: string; label: string; options: Opt[]
   )
 }
 
-// Pane Cài đặt (/tutien setting): mỗi mục một Select; chọn là lưu ngay vào $.store.
+// Mục cài đặt: tiêu đề có icon và màu, mỗi lựa chọn là một nút bấm bằng chuột; nút đang chọn có dấu ✓.
+function settingChoice(els: any, s: Setting, c: { value?: string; onSelect: (v: string) => void }) {
+  const { Box, Text, Button } = els
+  const cur = s.options.find(o => o.value === c.value)
+  return (
+    <Box key={s.key} flexDirection="column" borderStyle="round" borderColor={s.color} paddingX={1}>
+      <Text bold color={s.color}>{s.icon} {s.label}</Text>
+      <Box flexDirection="row" flexWrap="wrap" gap={1}>
+        {s.options.map(o => (
+          <Button key={`${s.key}:${o.value}`} onPress={() => c.onSelect(o.value)}>{o.value === c.value ? '✓ ' : ''}{o.icon ? `${o.icon} ` : ''}{o.label}</Button>
+        ))}
+      </Box>
+      {cur ? <Text dimColor color={s.color}>Đang chọn: {cur.icon ?? ''} {cur.label}</Text> : null}
+    </Box>
+  )
+}
+
+// Pane Cài đặt (/tutien setting): mỗi mục một thẻ nút bấm; chọn là lưu ngay vào $.store.
 export const SETTINGS_ID = 'tu-tien-settings'
 
 export async function renderSettings($: any, e: any) {
@@ -341,13 +475,21 @@ export async function renderSettings($: any, e: any) {
   SETTINGS.forEach((s, i) => { stored[s.key] = got[i] })
   const values = withDefaults(stored)
   const { th, sz } = await look($)
+  const out = await read($, quickOut)
+  const { Button } = els
   return (
     <Box flexDirection="column">
       <Text size={sz.title} bold color={th.title}>⚙️ Cài đặt Tu Tiên</Text>
-      {SETTINGS.map(s => choice(els, {
-          key: s.key,
-          label: s.label,
-          options: s.options,
+      {Button ? COMMAND_GROUPS.map(g => (
+        <Box key={`cmd:${g.title}`} flexDirection="column" borderStyle="round" borderColor={g.color} paddingX={1}>
+          <Text bold color={g.color}>{g.title}</Text>
+          <Box flexDirection="row" flexWrap="wrap" gap={1}>
+            {g.items.map(i => <Button key={`cmd:${i.arg}`} onPress={() => runQuick($, i.arg, i.label)}>{i.label}</Button>)}
+          </Box>
+        </Box>
+      )) : null}
+      {out ? outCard(els, $, out) : null}
+      {SETTINGS.map(s => settingChoice(els, s, {
           value: values[s.key],
           onSelect: (v: string) => {
             void (async () => {

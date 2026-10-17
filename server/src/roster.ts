@@ -4,7 +4,7 @@ import { sortBoards, type Row } from './logic.ts'
 import {
   emptySocial, ctxFor, memberOf, tongCreate, tongJoin, tongLeave, tongAppoint, tongWeek, invite, accept, unpair,
   seasonStep, titleOf, community, teamProgress, tongBoard, thienDaoEvent, canCongrats, ROLES,
-  renameSocial, acceptRow, congratsOnce, type Social, type Snap, type Role,
+  renameSocial, removeSocial, acceptRow, congratsOnce, tongWar, teamWeek, baiSu, nhanDo, suDoHuy, disciplesOf, type Social, type Snap, type Role,
 } from './social.ts'
 
 const lc = (s: string) => s.toLowerCase()
@@ -45,6 +45,14 @@ export class RosterDO {
       await saveSocial(renameSocial(social, body.from, body.to))
       return Response.json({ ok: true })
     }
+    if (url.pathname === '/remove' && req.method === 'POST') {
+      const old = find(body.name)
+      if (old) delete rows[old.name]
+      await this.state.storage.put('rows', rows)
+      await this.state.storage.put('gone', [...gone, lc(body.name)].slice(-500))
+      await saveSocial(removeSocial(social, body.name))
+      return Response.json({ ok: true })
+    }
     if (url.pathname === '/releases' && req.method === 'POST') {
       await this.state.storage.put('releases', body.releases)
       return Response.json({ ok: true })
@@ -70,6 +78,8 @@ export class RosterDO {
         event: thienDaoEvent(now),
         seasons: social.seasons,
         players: Object.keys(rows).length,
+        war: tongWar(social, snaps()),
+        teamWeek: teamWeek(snaps()),
         recent: Object.values(rows).filter(r => r.lastBreakthroughAt && now - r.lastBreakthroughAt < 7 * 86_400_000)
           .sort((a, b) => (b.lastBreakthroughAt ?? 0) - (a.lastBreakthroughAt ?? 0)).slice(0, 10)
           .map(r => ({ name: r.name, realm: r.realm, at: r.lastBreakthroughAt })),
@@ -95,6 +105,9 @@ export class RosterDO {
         partner: realName(social.partners[lc(name)]),
         invites: social.invites.filter(i => lc(i.to) === lc(name)).map(i => ({ from: i.from, kind: i.kind })),
         title: titleOf(social, name, now) ?? null,
+        master: realName(social.masters?.[lc(name)]),
+        disciples: disciplesOf(social, name).map(d => realName(d)),
+        linhMach: !!m && lc(tongWar(social, snaps()).lastWinner ?? '') === lc(m.tong.name),
         event: thienDaoEvent(now),
       })
     }
@@ -114,14 +127,23 @@ export class RosterDO {
           break
         }
         case 'invite': {
+          if (body.kind !== 'ban' && body.kind !== 'dao-lu') break
           const target = find(String(body.to ?? ''))
           if (!target) { r = { error: `Không có người chơi ${body.to}.` }; break }
           r = invite(social, me, target.name, body.kind, now)
           if (r.s) notify = { to: target.name, text: `💌 ${me} mời đạo hữu làm ${body.kind === 'ban' ? 'bạn đồng hành' : 'đạo lữ'}. Gõ /tutien ${body.kind} chap-nhan ${me}.` }
           break
         }
-        case 'accept': r = accept(social, me, String(body.from ?? ''), body.kind); if (r.s) notify = { to: String(body.from), text: `💞 ${me} đã chấp nhận lời mời.` }; break
+        case 'accept': if (body.kind !== 'ban' && body.kind !== 'dao-lu') break; r = accept(social, me, String(body.from ?? ''), body.kind); if (r.s) notify = { to: String(body.from), text: `💞 ${me} đã chấp nhận lời mời.` }; break
         case 'unpair': r = unpair(social, me, body.kind); break
+        case 'bai-su': {
+          const target = find(String(body.to ?? ''))
+          r = baiSu(social, meRow && snapOf(meRow), target && snapOf(target), now)
+          if (r.s && target) notify = { to: target.name, text: `🙇 ${me} quỳ trước động phủ xin bái sư. Gõ /tutien nhan-do ${me} để nhận.` }
+          break
+        }
+        case 'nhan-do': r = nhanDo(social, me, String(body.from ?? '')); if (r.s) notify = { to: String(body.from), text: `🧑‍🏫 ${me} đã nhận đạo hữu làm đồ đệ! +0,5% EXP nhờ sư phụ chỉ điểm.` }; break
+        case 'su-do-huy': r = suDoHuy(social, me); break
         case 'congrats': {
           const target = find(String(body.to ?? ''))
           if (!target || lc(target.name) === lc(me)) { r = { error: 'Không tìm thấy người này.' }; break }

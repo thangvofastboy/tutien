@@ -16,11 +16,11 @@ test('pane /tutien start vẽ được trên terminal và chuyển từ câu chu
   await ui.unmount()
 })
 
-test('pane Cài đặt vẽ được trên terminal với các Select', async ($, on) => {
+test('pane Cài đặt vẽ được trên terminal với các nút chọn', async ($, on) => {
   mock.store(on)
   const ui = await $.ui.mount({ plugin: 'tutien', surface: 'terminal', component: 'Pane', requestId: 'tu-tien-settings', props: { title: 'Cài đặt', bodyColumns: 80 } } as any)
-  expect(await ui.find({ type: 'Select', key: 'tutien.display' })).toBeDefined()
-  expect(await ui.find({ type: 'Select', key: 'tutien.band' })).toBeDefined()
-  expect(await ui.find({ type: 'Select', key: 'tutien.panelbg' })).toBeDefined()
+  expect(await ui.find({ type: 'Button', key: 'tutien.display:raster' })).toBeDefined()
+  expect(await ui.find({ type: 'Button', key: 'tutien.band:on' })).toBeDefined()
+  expect(await ui.find({ type: 'Button', key: 'tutien.panelbg:ink' })).toBeDefined()
   await ui.unmount()
 })

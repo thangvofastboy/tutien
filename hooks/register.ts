@@ -5,11 +5,12 @@ import { callServer, SERVER } from './api'
 import { CLASSES, GENDERS } from './rules'
 import { HELP, tokens, parseRegister, parseReset, formatTop } from './commands'
 import { statusText } from './display'
-import { refreshPane, renderPane, renderBand, renderSettings, renderStart, startWizard, submitWizardName, logGreeting, registerPlayer, setPlayer, PANE_ID, SETTINGS_ID, START_ID } from './pane'
+import { refreshPane, renderPane, renderBand, renderSettings, renderStart, startWizard, submitWizardName, logGreeting, registerPlayer, setPlayer, setAvatar, isPngBase64, applyEvents, showOut, PANE_ID, SETTINGS_ID, START_ID } from './pane'
 import { PERSONAS, personaById, buildPersonaPrompt, parsePersonaLines } from './persona'
 import { PROLOGUE, unlockedChapters } from './story'
 import { startWeb, stopWeb } from './web'
-import { runMore, statusText as fullStatus, extraBoards, MORE_HELP } from './more'
+import { runMore, statusText as fullStatus, extraBoards, resolvePendingLink, MORE_HELP } from './more'
+import { runFeatures, trackTool, FEATURE_HELP } from './features'
 import { loadAccount, sessionNotes, breakReminder, reconcile, personaSection } from './session'
 
 const USAGE = 'Usage: /tutien update | autoupdate on|off'
@@ -27,11 +28,6 @@ export function compareVersions(a: string, b: string): number {
 }
 
 export const register: Register = on => {
-  on('command.run', { command: 'tutien-pane' }, async $ => {
-    await $.ui.open({ id: PANE_ID, title: 'Tu tiên' })
-    return { text: 'Đã mở pane Tu tiên.' }
-  })
-
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => renderPane($, e))
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => renderBand($, e, next))
   on('ui.render', { component: 'Pane', requestId: SETTINGS_ID }, async ($, e) => renderSettings($, e))
@@ -44,6 +40,14 @@ export const register: Register = on => {
     return text ? { sections: [...out.sections, { id: 'tutien:persona', text, scope: 'session' as const }] } : out
   })
 
+  // Linh căn: đếm loại việc qua từng lần gọi tool (đuôi file hoặc lệnh shell); chạy nền, không chặn tool.
+  on('tool.call', async ($, e, next) => {
+    const result = await next(e)
+    const { tool, ...input } = e as any
+    void trackTool($, String(tool), input).catch(() => null)
+    return result
+  })
+
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     // Chạy nền: lượt kết thúc ngay, không chờ server (turn.complete bắn cả cho từng lượt subagent).
@@ -54,13 +58,9 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
-      name: 'tutien-pane',
-      description: 'Mở pane Tu tiên',
-    })
-    await $.command.register({
       name: 'tutien',
       description: 'Tu tien: update pulls the newest tag and reloads plugins',
-      argumentHint: 'update | autoupdate on|off',
+      argumentHint: 'panel | update | autoupdate on|off',
     })
     // Bản clone git: phiên bản theo tag. Bản cài từ marketplace (không có git): theo plugin.json.
     const described = await $.process.run(['git', 'describe', '--tags', '--abbrev=0', 'HEAD'], { cwd: $.plugin.root, timeoutMs: 30_000 }).catch(() => null)
@@ -75,6 +75,9 @@ export const register: Register = on => {
     // và mất mạng thì không làm hỏng session.start.
     void (async () => {
       if ((await $.store.get('tutien.autoupdate')) === 'on') await runUpdate($).catch(() => null)
+      // Liên kết dở từ lần trước (mất phản hồi khi gộp): chọn đúng khóa trước khi gửi lượt nào.
+      const linked = await resolvePendingLink($).catch(() => null)
+      if (linked) $.ui.log(linked)
       await flushUsage($).catch(() => null)
       await refreshPane($).catch(() => null)
       await logGreeting($).catch(() => null)
@@ -85,11 +88,19 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'tutien' }, async ($, e) => {
-    const [sub = '', ...rest] = tokens(e.args)
-    const tail = e.args.trim().slice(sub.length).trim()
+  on('command.run', { command: 'tutien' }, async ($, e) => runTutien($, e.args))
+}
+
+// /tutien <lệnh>: dùng chung cho ô nhập lệnh và các nút trong panel.
+export async function runTutien($: any, args: string): Promise<{ text: string }> {
+    const [sub = '', ...rest] = tokens(args)
+    const tail = args.trim().slice(sub.length).trim()
     switch (sub) {
-      case 'help': case '': return { text: `${HELP}\n\nMở rộng:\n${MORE_HELP}` }
+      case 'help': case '': return { text: `${HELP}\n\nMở rộng:\n${MORE_HELP}\n\nCơ duyên và đồng môn:\n${FEATURE_HELP}` }
+      case 'panel': {
+        await $.ui.open({ id: PANE_ID, title: 'Tu tiên' })
+        return { text: 'Đã mở panel Tu tiên.' }
+      }
       case 'update': return { text: await runUpdate($) }
       case 'autoupdate': {
         const v = parseAutoUpdate(rest.join(' '))
@@ -164,6 +175,17 @@ export const register: Register = on => {
         if (out.ok) await refreshPane($) // ghi lại trạng thái kèm bảng xếp hạng cho trang
         return { text: out.text }
       }
+      case 'hinh': {
+        if (!tail) return { text: 'Dùng: /tutien hinh <đường dẫn file PNG> | /tutien hinh xoa\nẢnh dùng chung mọi bậc, chỉ lưu trên máy này (tối đa ~1 MB).' }
+        if (tail === 'xoa') { await setAvatar($, null, null); return { text: 'Đã bỏ ảnh tự chọn, dùng lại ảnh mặc định.' } }
+        const file = tail.replace(/^"|"$/g, '')
+        const got = await $.fs.read(file, { as: 'bytes' }).catch(() => null)
+        const b64 = (got as any)?.base64
+        if (!b64) return { text: `Không đọc được file: ${file}` }
+        if (!isPngBase64(b64)) return { text: 'Chỉ nhận file PNG, tối đa khoảng 1 MB.' }
+        await setAvatar($, b64, file)
+        return { text: 'Đã đặt ảnh nhân vật (mọi bậc). Mở lại panel nếu chưa thấy đổi.' }
+      }
       case 'setting': case 'settings': case 'caidat': {
         await $.ui.open({ id: SETTINGS_ID, title: 'Cài đặt Tu Tiên' })
         return { text: 'Đã mở cài đặt.' }
@@ -190,9 +212,18 @@ export const register: Register = on => {
         sections.push(...(await extraBoards($, me, (await $.store.get('tutien.realm')) as number | undefined)))
         return { text: sections.join('\n\n') }
       }
-      default: return { text: (await runMore($, sub, rest, tail)) ?? `${HELP}\n\nMở rộng:\n${MORE_HELP}` }
+      default: {
+        const f = await runFeatures($, sub, rest, tail)
+        if (f) {
+          if (f.player) await setPlayer($, f.player)
+          if (f.events?.length) await applyEvents($, f.events)
+          if (f.card || f.actions) await showOut($, f.title ?? '🪪 Thẻ Tu Tiên', f.text, f.card, f.actions)
+          if (sub.startsWith('ky') || sub.startsWith('cong') || sub.startsWith('luan')) void refreshPane($).catch(() => null)
+          return { text: f.text }
+        }
+        return { text: (await runMore($, sub, rest, tail)) ?? `${HELP}\n\nMở rộng:\n${MORE_HELP}\n\nCơ duyên và đồng môn:\n${FEATURE_HELP}` }
+      }
     }
-  })
 }
 
 export async function runUpdate($: any): Promise<string> {

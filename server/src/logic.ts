@@ -1,12 +1,14 @@
 // server/src/logic.ts — nghiệp vụ server thuần, test bằng node:test. Luật lấy từ hooks/rules.ts (một nguồn).
 import { tammaStep, LINH_THACH_REWARD, type TammaState } from '../../hooks/tamma.ts'
-import { applyUsage, newPlayer, effects, need, settle, REALM_NAMES, TOKENS_PER_EXP, type Player, type Extra } from '../../hooks/rules.ts'
+import { applyUsage, newPlayer, effects, need, settle, NEED, REALM_COUNT, REALM_NAMES, TOKENS_PER_EXP, type Player, type Extra } from '../../hooks/rules.ts'
 import {
   recordDay, questStep, newBadges, grantArtifact, randomArtifact, bicanhStep, holidayStep, pillExtra, pillAfter,
-  inBeQuan, floorsStep, pushInbox, topFloor, weekKey, sumRange, nextDayKey, lastDays, journal, streak, bicanhProgress,
+  inBeQuan, floorsStep, pushInbox, topFloor, weekKey, sumRange, nextDayKey, lastDays, journal, bicanhProgress,
   QUEST_TOKENS, PILLS, BADGES, giftStep, type Extras,
 } from './extras.ts'
 import { vnDay, holidayOn, holidayTarget } from '../../hooks/holidays.ts'
+import { featureExtra, releaseBank, streakStep, streakDays, maybeKyNgo, congPhapOf, kyNgoView, duelCount, treeView, LINH_CAN, type Features } from './features.ts'
+import { cpEffects } from './congphap.ts'
 
 export const SEEN_LIMIT = 1000
 export const MAX_TOKENS_PER_TURN = 5_000_000
@@ -37,7 +39,18 @@ export type State = {
   renamedAt?: number
   renaming?: number // khóa đổi tên tới thời điểm này; trong lúc khóa, DO từ chối mọi lượt ghi
   accountHash?: string // tài khoản Claude của chủ nhân vật (băm); chỉ máy cùng tài khoản được liên kết
-} & Extras
+} & Extras & Features
+
+// Cộng các nguồn bonus: số thì cộng, cờ thì hoặc.
+export function sumExtra(...xs: Extra[]): Extra {
+  const out: Extra = {}
+  for (const x of xs) {
+    for (const k of ['exp', 'trib', 'death', 'pillExp', 'pillTrib', 'eventTrib', 'deathCut'] as const) if (x[k]) out[k] = (out[k] ?? 0) + x[k]!
+    if (x.halfDeath) out.halfDeath = true
+    if (x.teamWeek) out.teamWeek = x.teamWeek
+  }
+  return out
+}
 
 export function register(name: string, cls: string, gender: string, keyHash: string): State {
   return {
@@ -74,9 +87,17 @@ export function handleUsage(
   if (wasFlagged && p0.trib && st.lastAt !== undefined) p0 = { ...p0, trib: { ...p0.trib, deadline: p0.trib.deadline + (now - st.lastAt) } }
 
   // Bonus ngoài (tông, đồng hành, sự kiện; do Worker tính) và đan dược. Bế quan: không nhận EXP, không thiên phạt.
-  const x: Extra = { ...(body.ctx ?? {}), ...pillExtra(st.pills, now) }
+  const x: Extra = sumExtra(body.ctx ?? {}, pillExtra(st.pills, now), featureExtra(st))
   const closed = inBeQuan(st.beQuan, now)
   let { p, events }: { p: Player; events: string[] } = closed ? { p: p0, events: [] } : applyUsage(p0, tokens, now, rng, x)
+  // Kho EXP từ lần gộp: rót vào khi không thiên phạt (kể cả ngay sau khi vừa đột phá).
+  let expBank = st.expBank ?? 0
+  if (!closed && expBank > 0 && suspicion < FLAG_AT) {
+    const b = releaseBank(p, expBank, now, x)
+    p = b.p
+    expBank = b.bank
+    events = [...events, ...b.events]
+  }
   // Bị đánh dấu: EXP vẫn tính nhưng không vào thiên phạt, không lên bậc.
   if (suspicion >= FLAG_AT && (p.realm !== st.player.realm || (p.trib && !st.player.trib))) {
     p = { ...st.player, exp: Math.min(need(st.player.realm) - 1, st.player.exp + Math.floor(tokens / 1000)) }
@@ -156,8 +177,29 @@ export function handleUsage(
     recent,
     lastAt: now,
     tamma,
+    expBank: expBank || undefined,
   }
-  return { state: next, events, duplicate: false, gainedExp }
+  // Tính năng mới: chuỗi ngày, kỳ ngộ, điểm công pháp khi đột phá, tin Thiên Kiếp Đồng Tâm.
+  let after: State = next
+  if (suspicion < FLAG_AT) {
+    const sk = streakStep(next, now, rng)
+    after = { ...after, ...sk.state }
+    events.push(...sk.events)
+  }
+  // Lưu điểm công pháp theo bậc trước lượt này (người chơi cũ chưa lưu thì không mất điểm khi tử vong).
+  const cp = congPhapOf(st)
+  after = { ...after, congPhap: events.includes('breakthrough') ? { ...cp, points: cp.points + 1 } : cp }
+  if (!closed && suspicion < FLAG_AT) {
+    const kn = maybeKyNgo(after, tokens, now, rng)
+    after = { ...after, kyNgo: kn.kyNgo, kyNgoDay: kn.kyNgoDay }
+    if (kn.hit) events.push('ky-ngo')
+  }
+  const tw = body.ctx?.teamWeek
+  if (tw && after.teamWeek !== tw) {
+    after = { ...after, teamWeek: tw, inbox: pushInbox(after.inbox, '☄️ Thiên Kiếp Đồng Tâm! Cả team đạt mốc tuần, mọi người nhận +1% EXP đến hết tuần.', now) }
+    events.push('thien-kiep')
+  }
+  return { state: after, events, duplicate: false, gainedExp }
 }
 
 // Quà của đạo lữ (spec 18.9): chỉ khi đang tu thường. Bế quan, thiên phạt hoặc bị đánh dấu thì không nhận,
@@ -191,7 +233,7 @@ export type Row = {
   name: string; cls: string; gender: string; realm: number; exp: number; pct: number; lifetimeTokens: number; week: number; deaths: number; artifacts: number; flagged?: boolean
   // Mở rộng (spec 18, 20, 25): tuần lịch, tháng, tháp, hoạt động gần nhất, hồ sơ công khai.
   wk?: number; lwk?: number; mo?: number; lmo?: number; floor?: number; floorAt?: number; lastAt?: number; lastBreakthroughAt?: number
-  badges?: string[]; persona?: string; equipped?: string; trib?: { pctTrib: number; deadline: number }
+  badges?: string[]; persona?: string; equipped?: string; linhCan?: string; duel?: number; trib?: { pctTrib: number; deadline: number }
 }
 
 // Trạng thái đã xử lý thiên phạt quá hạn tại thời điểm đọc (GET /me, bảng xếp hạng).
@@ -220,6 +262,8 @@ export function row(st0: State, now: number): Row {
     badges: st.badges ?? [],
     persona: st.persona,
     equipped: st.equipped,
+    linhCan: st.linhCan,
+    duel: cpEffects(st).duel,
     trib: st.player.trib ? { pctTrib: Math.min(100, Math.floor((st.player.trib.earned / st.player.trib.required) * 100)), deadline: st.player.trib.deadline } : undefined,
   }
 }
@@ -321,12 +365,17 @@ export function statusOf(st: State, now: number) {
     badges: st.badges ?? [],
     artifacts: st.player.artifacts,
     floor: topFloor(st.floors),
-    streak: streak(h, now),
+    streak: streakDays(st, now),
     tamma: st.tamma?.active && now <= st.tamma.active.until ? { pct: Math.min(100, Math.floor((st.tamma.active.got / st.tamma.active.need) * 100)), until: st.tamma.active.until } : null,
     tammaWins: st.tamma?.wins ?? 0,
     congrats: st.congrats ?? 0,
     inbox: st.inbox ?? [],
     devices: 1 + (st.devices?.length ?? 0),
+    linhCan: st.linhCan ? { id: st.linhCan, ...LINH_CAN[st.linhCan], bonus: undefined } : null,
+    kyNgo: kyNgoView(st, now),
+    congPhap: treeView(st),
+    luanDao: duelCount(st, now),
+    expBank: st.expBank ?? 0,
   }
 }
 
@@ -334,4 +383,52 @@ export function historyOf(st: State, now: number) {
   const days = lastDays(st.history, now, 14)
   const top = Math.max(1, ...days.map(d => d.t))
   return { days: days.map(d => ({ day: d.day, pct: Math.round((d.t / top) * 100) })), journal: journal(st.history, now) }
+}
+
+// Gộp nhân vật cũ vào nhân vật chính (cùng tài khoản): cộng EXP tích lũy, linh thạch, pháp bảo, huy hiệu, đồ,
+// token và lịch sử theo ngày. Chính giữ tên, khóa, tông, đan dược, bí cảnh. Nhân vật cũ do người gọi xóa.
+export function cumulativeExp(p: Player): number {
+  return NEED.slice(0, p.realm - 1).reduce((a, b) => a + b, 0) + p.exp
+}
+const sumMaps = (a: Record<string, number> = {}, b: Record<string, number> = {}) => {
+  const out = { ...a }
+  for (const [k, v] of Object.entries(b)) out[k] = (out[k] ?? 0) + v
+  return out
+}
+export function mergeStates(main: State, old: State): State {
+  const mp = main.player
+  const pendingTotal = mp.pending + old.player.pending
+  let realm = mp.realm
+  let exp = mp.exp + cumulativeExp(old.player) + Math.floor(pendingTotal / TOKENS_PER_EXP)
+  // Đang thiên phạt thì không nhảy bậc: EXP dừng ở trần, phần dư vào kho, cộng dần sau mỗi lần độ kiếp.
+  let bank = main.expBank ?? 0
+  if (mp.trib) { bank += Math.max(0, exp - need(realm)); exp = Math.min(exp, need(realm)) }
+  else while (realm < REALM_COUNT && exp >= need(realm)) { exp -= need(realm); realm++ }
+  if (realm >= REALM_COUNT) exp = Math.min(exp, need(realm))
+  const history: Record<string, { t: number; e: number; q?: boolean; ev?: Record<string, number> }> = { ...(main.history ?? {}) }
+  for (const [day, d] of Object.entries(old.history ?? {})) {
+    const m = history[day]
+    history[day] = m ? { ...m, t: m.t + d.t, e: m.e + d.e, q: m.q || d.q, ev: sumMaps(m.ev, d.ev) } : d
+  }
+  // Pháp bảo của nhân vật cũ đi qua trần như khi nhận thường (chạm trần thì hóa linh thạch).
+  let player: Player = { ...mp, realm, exp, pending: pendingTotal % TOKENS_PER_EXP }
+  let linhThach = (main.linhThach ?? 0) + (old.linhThach ?? 0)
+  for (const a of old.player.artifacts) ({ p: player, linhThach } = grantArtifact(player, a, linhThach))
+  // Bậc nhảy lên nhờ gộp cũng cho điểm công pháp như đột phá thường.
+  const cp = congPhapOf(main)
+  return {
+    ...main,
+    player,
+    expBank: bank || undefined,
+    congPhap: { ...cp, points: cp.points + (realm - mp.realm) },
+    lifetimeTokens: main.lifetimeTokens + old.lifetimeTokens,
+    deaths: main.deaths + old.deaths,
+    resets: main.resets + old.resets,
+    weekTokens: sumMaps(main.weekTokens, old.weekTokens),
+    history,
+    linhThach,
+    badges: [...new Set([...(main.badges ?? []), ...(old.badges ?? [])])],
+    inventory: [...new Set([...(main.inventory ?? []), ...(old.inventory ?? [])])],
+    inbox: pushInbox(main.inbox, `🔗 Đã gộp nhân vật ${old.name} vào đây (+${cumulativeExp(old.player)} EXP).`, Date.now()),
+  }
 }

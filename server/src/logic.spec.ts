@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { register, handleUsage, handleReset, boards, row, DAY_KEY } from './logic.ts'
+import { register, mergeStates, cumulativeExp, handleUsage, handleReset, boards, row, DAY_KEY } from './logic.ts'
 import { need } from '../../hooks/rules.ts'
 
 const NOW = Date.UTC(2026, 9, 14, 12)
@@ -216,4 +216,27 @@ test('#4 điểm nghi ngờ giảm dần theo ngày', () => {
   let st = { ...register('y', 'Thể Tu', 'Nam', 'h'), suspicion: 9, lastAt: NOW }
   st = handleUsage(st, { turnId: 'later', tokens: 1000 }, NOW + 3 * 86_400_000, never).state
   assert.equal((st.suspicion ?? 0) <= 3, true)
+})
+
+test('gộp nhân vật cũ: cộng EXP tích lũy, linh thạch, pháp bảo, huy hiệu, token', () => {
+  const main = { ...register('chinh', 'Kiếm Tu', 'Nam', 'h1'), lifetimeTokens: 100, linhThach: 5, badges: ['a'] }
+  const old = { ...register('cu', 'Ma Tu', 'Nữ', 'h2'), lifetimeTokens: 40, linhThach: 7, badges: ['a', 'b'] }
+  old.player = { ...old.player, realm: 3, exp: 10, artifacts: ['e'] }
+  const m = mergeStates(main, old)
+  assert.equal(cumulativeExp(m.player), cumulativeExp(main.player) + cumulativeExp(old.player))
+  assert.equal(m.lifetimeTokens, 140)
+  assert.equal(m.linhThach, 12)
+  assert.deepEqual(m.badges, ['a', 'b'])
+  assert.deepEqual(m.player.artifacts, ['e'])
+  assert.equal(m.name, 'chinh')
+})
+
+test('gộp khi đang thiên phạt: không nhảy bậc, EXP dừng ở trần', () => {
+  const main = register('chinh', 'Kiếm Tu', 'Nam', 'h1')
+  main.player = { ...main.player, exp: need(1), trib: { startedAt: 0, deadline: 1, required: 1, earned: 0 } }
+  const old = register('cu', 'Ma Tu', 'Nữ', 'h2')
+  old.player = { ...old.player, realm: 5, exp: 0 }
+  const m = mergeStates(main, old)
+  assert.equal(m.player.realm, 1)
+  assert.equal(m.player.exp, need(1))
 })

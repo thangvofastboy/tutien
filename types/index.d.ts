@@ -23,8 +23,13 @@ declare module 'claude-code' {
       wizard: { step: number; cls?: string; gender?: string; name?: string; persona?: string; display?: string; done?: boolean }
       wizardError: string | null
       typed: number
-      info: { quest: number; bicanh: string | null; tamma: number | null; tong: string | null } | null
+      info: {
+        quest: number; bicanh: string | null; tamma: number | null; tong: string | null
+        streak?: number; linhCan?: { name: string; icon: string } | null; cpPoints?: number
+        kyNgo?: { id: string; title: string; desc: string; a: string; b: string } | null
+      } | null
       board: { rank: number; name: string; cls: string; realm: number; score: number }[]
+      quickOut: { title: string; text: string; card?: string; actions?: { label: string; arg: string }[] } | null
     }
   }
 }
