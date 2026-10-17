@@ -41,6 +41,7 @@ export class RosterDO {
       const old = find(body.from)
       if (old) { delete rows[old.name]; rows[body.to] = { ...old, name: body.to } }
       await this.state.storage.put('rows', rows)
+      // ponytail: danh sách 'gone' chỉ giữ 500 tên gần nhất (cũng áp dụng cho /remove), tên cũ hơn bị quên. Nâng cấp: tăng trần hoặc bảng riêng khi số đổi tên/xóa vượt 500.
       await this.state.storage.put('gone', [...gone.filter(g => g !== lc(body.to)), lc(body.from)].slice(-500))
       await saveSocial(renameSocial(social, body.from, body.to))
       return Response.json({ ok: true })

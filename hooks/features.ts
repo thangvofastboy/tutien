@@ -296,6 +296,7 @@ export async function runFeatures($: any, sub: string, rest: string[], tail: str
       if (!r.ok || !r.data) return { text: fail(r) }
       const name = ((await $.store.get('tutien.name')) as string) ?? ''
       const persona = ((await $.store.get('tutien.persona')) as string | undefined) ?? null
+      // ponytail: chỉ đưa 7 ngày gần nhất vào prompt nên truyện tuần không nhớ tuần trước. Nâng cấp: thêm tóm tắt tuần trước nếu muốn mạch truyện liền nhau.
       const out = await $.model.complete({ model: 'haiku', prompt: storyPrompt(name, r.data.player, r.data.status, (h.data?.days ?? []).slice(-7), persona === 'none' ? null : persona) }).catch(() => null)
       const text = out && out.isAnswered ? String(out.text).trim() : ''
       if (!text) return { text: '🖋️ Bút lông của Claude bị khô mực. Thử lại sau nhé.' }

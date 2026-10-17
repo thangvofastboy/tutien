@@ -288,11 +288,13 @@ export function buyItem(inv: string[] = [], lt: number, id: string): { inventory
 }
 
 // ---------- Hộp thư (chúc mừng, lời mời, thông báo tông) ----------
+// ponytail: hộp thư chỉ giữ 20 tin gần nhất, tin cũ bị cắt âm thầm. Nâng cấp: lưu theo trang khi cần đọc lại lâu hơn.
 export const pushInbox = (inbox: Extras['inbox'] = [], text: string, now: number) => [...inbox, { at: now, text }].slice(-20)
 
 // ---------- Đối chiếu transcript (spec 21.4): server cao hơn máy quá 10% thì nghi ngờ ----------
 export function reconcileStep(h: Record<string, Day> = {}, r: Extras['reconcile'] = [], day: string, local: number): { reconcile: NonNullable<Extras['reconcile']>; suspicious: boolean } {
   const server = h[day]?.t ?? 0
+  // ponytail: chỉ đối chiếu 30 ngày gần nhất, ngày cũ hơn không còn được kiểm tra. Nâng cấp: tăng trần khi cần soát lại lâu hơn.
   const next = [...r.filter(x => x.day !== day), { day, local, server }].slice(-30)
   return { reconcile: next, suspicious: server > local * (1 + RECONCILE_SLACK) + 50_000 }
 }

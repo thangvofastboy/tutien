@@ -182,6 +182,7 @@ export async function runTutien($: any, args: string): Promise<{ text: string }>
         const got = await $.fs.read(file, { as: 'bytes' }).catch(() => null)
         const b64 = (got as any)?.base64
         if (!b64) return { text: `Không đọc được file: ${file}` }
+        // ponytail: chỉ kiểm tra tiền tố base64 và độ dài chuỗi, không giải mã nên file hỏng có tiền tố PNG vẫn lọt. Nâng cấp: giải mã và kiểm tra cấu trúc ảnh khi có người gặp lỗi hiển thị.
         if (!isPngBase64(b64)) return { text: 'Chỉ nhận file PNG, tối đa khoảng 1 MB.' }
         await setAvatar($, b64, file)
         return { text: 'Đã đặt ảnh nhân vật (mọi bậc). Mở lại panel nếu chưa thấy đổi.' }
