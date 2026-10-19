@@ -97,3 +97,8 @@ test('/tutien pane mở panel nhân vật; /tutien panel (tên cũ) vẫn chạy
   expect((await $.command.run(RUN('panel'))).text).toContain('Đã mở panel')
   expect(opened.length).toBe(2)
 })
+
+test('lệnh có token đầu trong nháy ("hinh" xoa): phần sau lệnh vẫn đúng', async ($, on) => {
+  mock.store(on)
+  expect((await $.command.run(RUN('"hinh" xoa'))).text).toContain('Đã bỏ ảnh')
+})
