@@ -60,7 +60,7 @@ export const register: Register = on => {
     await $.command.register({
       name: 'tutien',
       description: 'Tu tien: update pulls the newest tag and reloads plugins',
-      argumentHint: 'panel | update | autoupdate on|off',
+      argumentHint: 'pane | update | autoupdate on|off',
     })
     // Bản clone git: phiên bản theo tag. Bản cài từ marketplace (không có git): theo plugin.json.
     const described = await $.process.run(['git', 'describe', '--tags', '--abbrev=0', 'HEAD'], { cwd: $.plugin.root, timeoutMs: 30_000 }).catch(() => null)
@@ -98,7 +98,7 @@ export async function runTutien($: any, args: string): Promise<{ text: string }>
     const tail = args.trim().slice(sub.length).trim()
     switch (sub) {
       case 'help': case '': return { text: `${HELP}\n\nMở rộng:\n${MORE_HELP}\n\nCơ duyên và đồng môn:\n${FEATURE_HELP}` }
-      case 'panel': {
+      case 'pane': case 'panel': { // 'panel': tên cũ, giữ để lệnh quen tay vẫn chạy
         await $.ui.open({ id: PANE_ID, title: 'Tu tiên' })
         return { text: 'Đã mở panel Tu tiên.' }
       }

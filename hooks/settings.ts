@@ -51,11 +51,11 @@ export const COMMAND_GROUPS: CommandGroup[] = [
     { arg: 'luan-dao', label: '⚔️ Luận đạo' }, { arg: 'tong-chien', label: '🏯 Tông chiến' },
     { arg: 'su-do', label: '🧑‍🏫 Sư đồ' }, { arg: 'the', label: '🪪 Thẻ khoe' }] },
   { title: '🚀 Mở', color: '#ffa657', items: [
-    { arg: 'panel', label: '🖼️ Panel nhân vật' }, { arg: 'start', label: '🌱 Bắt đầu' },
+    { arg: 'pane', label: '🖼️ Panel nhân vật' }, { arg: 'start', label: '🌱 Bắt đầu' },
     { arg: 'web', label: '🌐 Mini web' }, { arg: 'help', label: '❓ Trợ giúp' }] },
 ]
 // Lệnh chỉ mở pane/cửa sổ khác, kết quả không hiện trong thẻ.
-export const OPEN_COMMANDS = ['setting', 'panel', 'start']
+export const OPEN_COMMANDS = ['setting', 'pane', 'start']
 
 // Màu nền thật của panel theo lựa chọn; 'terminal' là không tô, nên nền là nền terminal đang dùng.
 export const PANEL_BG: Record<string, string | undefined> = {

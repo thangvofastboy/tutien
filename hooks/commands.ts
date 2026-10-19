@@ -16,7 +16,7 @@ export const HELP = [
   '🔑 /tutien khoa-moi                       đổi khóa bí mật khi nghi bị lộ',
   '🆙 /tutien update                         cập nhật bản đã ký mới nhất',
   '🎨 /tutien hinh <ảnh png/jpg…> | xoa      đặt ảnh nhân vật riêng (mọi bậc, chỉ trên máy này)',
-  '🪟 /tutien panel                          mở panel nhân vật',
+  '🪟 /tutien pane                           mở panel nhân vật',
   '🔧 /tutien setting (settings)             mở pane cài đặt',
   '🌐 /tutien web [stop]                     mở mini web http://127.0.0.1:7340',
   '❓ /tutien help                           danh sách này',

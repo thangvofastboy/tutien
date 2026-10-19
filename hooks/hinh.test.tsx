@@ -88,3 +88,12 @@ test('đã ghi danh nhưng chưa có nhân vật lưu: báo Đang tải, không 
   expect(await ui.find({ type: 'Text', text: /Đang tải nhân vật/ })).toBeDefined()
   await ui.unmount()
 })
+
+test('/tutien pane mở panel nhân vật; /tutien panel (tên cũ) vẫn chạy', async ($, on) => {
+  mock.store(on)
+  const opened: string[] = []
+  on('ui.open', async (_$: any, e: any) => { opened.push(e.id); return { value: { isPlaced: true } } as any })
+  expect((await $.command.run(RUN('pane'))).text).toContain('Đã mở panel')
+  expect((await $.command.run(RUN('panel'))).text).toContain('Đã mở panel')
+  expect(opened.length).toBe(2)
+})
