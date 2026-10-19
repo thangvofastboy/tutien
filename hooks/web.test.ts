@@ -10,4 +10,6 @@ test('trạng thái mini web: đường dẫn ảnh theo bậc, có phần trăm
   expect(typeof s.percent).toBe('number')
   expect(JSON.stringify(s).includes('key')).toBe(false)
   expect(webState('a', undefined, 0)).toEqual({ registered: false, board: [] })
+  expect(s.avatar).toBe(null)
+  expect((webState('ThangVo', p, 0, [], '12-abc') as any).avatar).toBe('12-abc')
 })

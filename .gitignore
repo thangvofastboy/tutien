@@ -7,3 +7,4 @@ node_modules/
 .wrangler/
 __pycache__/
 web/state.json
+web/avatar.b64

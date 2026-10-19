@@ -134,6 +134,7 @@ export async function setAvatar($: any, b64: string | null, file: string | null,
   await $.store.set('tutien.avatarCells', cells)
   artCache.clear() // bỏ kết quả stat cũ của file ảnh
   await update($, settingsTick, (n: number) => n + 1)
+  if (webRunning()) await writeWebState($, await read($, me), await read($, board))
 }
 
 export const realmImage = (root: string, p: Player) =>

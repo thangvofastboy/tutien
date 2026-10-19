@@ -54,7 +54,7 @@ async function tick() {
     if (!s.registered) { card.innerHTML = '<h1>🌱 Chưa Ghi Danh</h1><p class="meta">Dùng /tutien start trong Claude Code.</p>'; return }
     card.className = 'card' + (s.trib ? ' trib' : '') + (s.danger ? ' danger' : '')
     card.innerHTML =
-      '<img alt="' + esc(s.realmName) + '" src="/art.png?r=' + Number(s.realm) + '&c=' + encodeURIComponent(s.cls) + '">' +
+      '<img alt="' + esc(s.realmName) + '" src="/art.png?r=' + Number(s.realm) + '&c=' + encodeURIComponent(s.cls) + '&a=' + encodeURIComponent(s.avatar || '') + '">' +
       '<h1>' + esc(s.icon) + ' ' + esc(s.name) + '</h1>' +
       '<div class="meta">' + esc(s.cls) + ' · ' + esc(s.gender) + '</div>' +
       '<div class="realm">' + esc(s.realmName) + ' · Bậc ' + Number(s.realm) + '/33</div>' +
@@ -80,6 +80,14 @@ http.createServer((req, res) => {
   }
   if (url.pathname === '/art.png') {
     const s = readState()
+    if (s.avatar) {
+      // Ảnh tự chọn (/tutien hinh): mod ghi base64 ra web/avatar.b64.
+      return fs.readFile(path.join(root, 'web', 'avatar.b64'), 'utf8', (err, b64) => {
+        if (err) { res.writeHead(404); return res.end() }
+        res.writeHead(200, { 'content-type': 'image/png' })
+        res.end(Buffer.from(b64.trim(), 'base64'))
+      })
+    }
     const file = path.resolve(root, String(s.image || ''))
     if (!s.image || !file.startsWith(realms + path.sep)) { res.writeHead(404); return res.end() }
     return fs.readFile(file, (err, buf) => {

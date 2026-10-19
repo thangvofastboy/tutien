@@ -7,7 +7,8 @@ export const WEB_URL = `http://127.0.0.1:${WEB_PORT}`
 
 export type WebBoardRow = { rank: number; name: string; cls: string; realm: number; score: number }
 
-export function webState(name: string, p: Player | undefined, now: number, board: WebBoardRow[] = []) {
+// avatar: dấu phiên bản của ảnh tự chọn (web/avatar.b64) để trang tải lại ảnh khi đổi; null là dùng ảnh bậc.
+export function webState(name: string, p: Player | undefined, now: number, board: WebBoardRow[] = [], avatar: string | null = null) {
   if (!p) return { registered: false, board }
   return {
     registered: true,
@@ -22,6 +23,7 @@ export function webState(name: string, p: Player | undefined, now: number, board
     trib: p.trib ? { left: timeLeft(now, p.trib.deadline) } : null,
     danger: barColor(p, now) === 'danger',
     image: `assets/realms/${p.cls}/${p.gender}/${String(p.realm).padStart(2, '0')}.png`,
+    avatar,
     board: board.map(r => ({ ...r, realmName: REALM_NAMES[r.realm - 1] ?? '', me: r.name.toLowerCase() === name.toLowerCase() })),
   }
 }
@@ -32,8 +34,11 @@ let proc: any = null
 export const webRunning = () => proc !== null
 
 export async function writeWebState($: any, p: Player | undefined, board: WebBoardRow[] = []): Promise<void> {
-  const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
-  await $.fs.write(`${$.plugin.root}/web/state.json`, JSON.stringify(webState(name, p, Date.now(), board)))
+  const [name, b64] = await Promise.all([$.store.get('tutien.name'), $.store.get('tutien.avatar')]) as [string | undefined, unknown]
+  // Ảnh tự chọn ghi ra file riêng (có thể tới ~1 MB), state.json chỉ mang dấu phiên bản cho nhẹ.
+  const avatar = typeof b64 === 'string' && b64 ? `${b64.length}-${b64.slice(-12)}` : null
+  if (avatar) await $.fs.write(`${$.plugin.root}/web/avatar.b64`, b64 as string)
+  await $.fs.write(`${$.plugin.root}/web/state.json`, JSON.stringify(webState(name ?? '', p, Date.now(), board, avatar)))
 }
 
 // Chạy server và đợi dòng "listening"; trả về lỗi nếu node thiếu hoặc cổng bận.
