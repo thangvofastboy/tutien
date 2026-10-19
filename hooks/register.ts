@@ -5,7 +5,7 @@ import { callServer, SERVER } from './api'
 import { CLASSES, GENDERS } from './rules'
 import { HELP, tokens, parseRegister, parseReset, formatTop } from './commands'
 import { statusText } from './display'
-import { refreshPane, renderPane, renderBand, renderSettings, renderStart, startWizard, submitWizardName, logGreeting, registerPlayer, setPlayer, setAvatar, isPngBase64, applyEvents, showOut, PANE_ID, SETTINGS_ID, START_ID } from './pane'
+import { refreshPane, renderPane, renderBand, renderSettings, renderStart, startWizard, submitWizardName, logGreeting, registerPlayer, setPlayer, seedPlayer, setAvatar, isPngBase64, applyEvents, showOut, PANE_ID, SETTINGS_ID, START_ID } from './pane'
 import { PERSONAS, personaById, buildPersonaPrompt, parsePersonaLines } from './persona'
 import { PROLOGUE, unlockedChapters } from './story'
 import { startWeb, stopWeb } from './web'
@@ -71,6 +71,7 @@ export const register: Register = on => {
     }
     await $.store.set('tutien.version', version)
     await loadAccount($)
+    await seedPlayer($)
     // Phần còn lại cần mạng (cập nhật, gửi hàng đợi, hộp thư): chạy nền để mở phiên không phải chờ,
     // và mất mạng thì không làm hỏng session.start.
     void (async () => {
@@ -175,17 +176,30 @@ export async function runTutien($: any, args: string): Promise<{ text: string }>
         if (out.ok) await refreshPane($) // ghi lại trạng thái kèm bảng xếp hạng cho trang
         return { text: out.text }
       }
-      case 'hinh': {
-        if (!tail) return { text: 'Dùng: /tutien hinh <đường dẫn file PNG> | /tutien hinh xoa\nẢnh dùng chung mọi bậc, chỉ lưu trên máy này (tối đa ~1 MB).' }
-        if (tail === 'xoa') { await setAvatar($, null, null); return { text: 'Đã bỏ ảnh tự chọn, dùng lại ảnh mặc định.' } }
-        const file = tail.replace(/^"|"$/g, '')
-        const got = await $.fs.read(file, { as: 'bytes' }).catch(() => null)
-        const b64 = (got as any)?.base64
-        if (!b64) return { text: `Không đọc được file: ${file}` }
+      case 'hinh': case 'avatar': {
+        if (!tail) return { text: 'Dùng: /tutien hinh <đường dẫn ảnh: png, jpg, webp, gif…> | /tutien hinh xoa\nẢnh dùng chung mọi bậc, chỉ lưu trên máy này.' }
+        if (tail === 'xoa' || tail === 'off') { await setAvatar($, null, null); return { text: 'Đã bỏ ảnh tự chọn, dùng lại ảnh mặc định.' } }
+        const file = tail.replace(/^(['"])(.*)\1$/, '$2')
+        // scripts/avatar.py: mọi định dạng Pillow đọc được, hiểu ~, thu về 96×96 kèm ô màu cho terminal.
+        const r = await $.process.run(['python3', `${$.plugin.root}/scripts/avatar.py`, file], { timeoutMs: 60_000 }).catch(() => null)
+        if (r?.exitCode === 0) {
+          let a: any = null
+          try { a = JSON.parse(r.stdout) } catch { /* in lạ: thử cách dưới */ }
+          if (isPngBase64(a?.png) && typeof a.cells === 'string') {
+            await setAvatar($, a.png, typeof a.file === 'string' ? a.file : file, a.cells)
+            return { text: 'Đã đặt ảnh nhân vật (mọi bậc). Mở lại panel nếu chưa thấy đổi.' }
+          }
+        }
+        // Không có python3 hoặc Pillow: nhận thẳng file PNG, không có ô màu nên terminal chế độ Ô màu vẫn vẽ ảnh bậc.
         // ponytail: chỉ kiểm tra tiền tố base64 và độ dài chuỗi, không giải mã nên file hỏng có tiền tố PNG vẫn lọt. Nâng cấp: giải mã và kiểm tra cấu trúc ảnh khi có người gặp lỗi hiển thị.
-        if (!isPngBase64(b64)) return { text: 'Chỉ nhận file PNG, tối đa khoảng 1 MB.' }
-        await setAvatar($, b64, file)
-        return { text: 'Đã đặt ảnh nhân vật (mọi bậc). Mở lại panel nếu chưa thấy đổi.' }
+        const b64 = ((await $.fs.read(file, { as: 'bytes' }).catch(() => null)) as any)?.base64
+        if (isPngBase64(b64)) {
+          await setAvatar($, b64, file)
+          return { text: 'Đã đặt ảnh nhân vật (mọi bậc). Terminal chế độ Ô màu cần python3 + Pillow (pip install pillow) để vẽ ảnh này.' }
+        }
+        const err = String(r?.stderr ?? '')
+        if (/No module named 'PIL'/.test(err)) return { text: 'Cần Pillow để đọc ảnh này: pip install pillow (hoặc dùng file PNG).' }
+        return { text: `Không đọc được ảnh: ${file}${err ? `\n${err.trim().split('\n').pop()}` : ''}` }
       }
       case 'setting': case 'settings': case 'caidat': {
         await $.ui.open({ id: SETTINGS_ID, title: 'Cài đặt Tu Tiên' })

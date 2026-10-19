@@ -118,19 +118,20 @@ function spriteOf(b64: string, smooth: boolean, size: number): string {
 export const svgSprite = (b64: string, smooth = false, size = 192) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="${size}" height="${size}"><image href="data:image/png;base64,${b64}" width="96" height="96" style="image-rendering:${smooth ? 'auto' : 'pixelated'}"/></svg>`
 // Cỡ ảnh theo bội nguyên của 96 px nên giữ nét; 'to' lấp gần hết bề ngang panel.
-export const ART_SIZES: Record<string, number> = { vua: 192, lon: 288, to: 384 }
+export const ART_SIZES: Record<string, number> = { nho: 96, vua: 192, lon: 288, to: 384 }
 
 // Ảnh nhân vật tự chọn (/tutien hinh): dùng chung mọi bậc, chỉ lưu trên máy này.
-// Svg dùng base64 lưu trong store; chế độ Image đọc lại file gốc nếu còn.
+// Svg dùng base64 lưu trong store; Raster dùng ô màu do scripts/avatar.py dựng; chế độ Image đọc lại file gốc nếu còn.
 export const AVATAR_MAX_B64 = 1_400_000
 export const isPngBase64 = (b64: unknown): b64 is string => typeof b64 === 'string' && b64.startsWith('iVBORw0KGgo') && b64.length <= AVATAR_MAX_B64
-async function avatarOf($: any): Promise<{ b64: string; file: string | null } | null> {
-  const [b64, file] = await Promise.all([$.store.get('tutien.avatar'), $.store.get('tutien.avatarFile')])
-  return isPngBase64(b64) ? { b64, file: typeof file === 'string' ? file : null } : null
+async function avatarOf($: any): Promise<{ b64: string; file: string | null; cells: string | null } | null> {
+  const [b64, file, cells] = await Promise.all([$.store.get('tutien.avatar'), $.store.get('tutien.avatarFile'), $.store.get('tutien.avatarCells')])
+  return isPngBase64(b64) ? { b64, file: typeof file === 'string' ? file : null, cells: typeof cells === 'string' ? cells : null } : null
 }
-export async function setAvatar($: any, b64: string | null, file: string | null): Promise<void> {
+export async function setAvatar($: any, b64: string | null, file: string | null, cells: string | null = null): Promise<void> {
   await $.store.set('tutien.avatar', b64)
   await $.store.set('tutien.avatarFile', file)
+  await $.store.set('tutien.avatarCells', cells)
   artCache.clear() // bỏ kết quả stat cũ của file ảnh
   await update($, settingsTick, (n: number) => n + 1)
 }
@@ -142,6 +143,7 @@ export const realmImage = (root: string, p: Player) =>
 // Cập nhật nhân vật trong pane từ phản hồi server (sau mỗi lượt, đăng ký, reset, đổi ngoại hình).
 export async function setPlayer($: any, player: Player): Promise<void> {
   await update($, me, () => player)
+  await $.store.set('tutien.player', player) // để session mới và /clear có ngay nhân vật, khỏi chờ server
   await $.store.set('tutien.realm', player.realm)
   await showStatus($, player)
   if (webRunning()) await writeWebState($, player, await read($, board))
@@ -213,6 +215,12 @@ const VIS: { key: string; label: string }[] = [
 async function toggleSetting($: any, key: string, on: boolean): Promise<void> {
   await $.store.set(key, on ? 'off' : 'on')
   await update($, settingsTick, (n: number) => n + 1)
+}
+
+// Atom `me` mất khi /clear hoặc mở session mới: nạp lại nhân vật đã lưu trước khi hỏi server.
+export async function seedPlayer($: any): Promise<void> {
+  const p = (await $.store.get('tutien.player')) as Player | undefined
+  if (p && !(await read($, me))) await update($, me, () => p)
 }
 
 export async function refreshPane($: any): Promise<void> {
@@ -309,7 +317,12 @@ const FX_SVG_OF: Record<string, FxKind | undefined> = {
 export async function renderPane($: any, e: any) {
   const { Box, Text, Image, Raster, Svg, Button } = $.ui.resolve(e)
   const p = await read($, me)
-  if (!p) return <Text dimColor>🌱 Chưa ghi danh. Dùng /tutien register.</Text>
+  if (!p) {
+    // Đã có khóa là đã ghi danh, chỉ là chưa tải xong từ server.
+    return (await $.store.get('tutien.key'))
+      ? <Text dimColor>⏳ Đang tải nhân vật…</Text>
+      : <Text dimColor>🌱 Chưa ghi danh. Dùng /tutien start.</Text>
+  }
 
   const alt = `${REALM_NAMES[p.realm - 1]} (${p.cls}, ${p.gender})`
   const fx = await read($, effect)
@@ -341,24 +354,31 @@ export async function renderPane($: any, e: any) {
   const custom = await avatarOf($)
   const [artSize, smooth] = await Promise.all([setting($, 'tutien.artsize'), setting($, 'tutien.artsmooth')])
   const artPx = ART_SIZES[artSize ?? ''] ?? ART_SIZES.vua
+  // Terminal chỉ có cỡ thường và 'nho' (một nửa mỗi chiều); các cỡ lớn hơn chỉ dành cho Svg.
+  const half = artSize === 'nho'
+  const raster = (cells: string) => half
+    ? <Raster key="realm" columns={CELL_COLS / 2} rows={CELL_ROWS / 2} cells={shrinkCells(cells, CELL_COLS, CELL_ROWS)} />
+    : <Raster key="realm" columns={CELL_COLS} rows={CELL_ROWS} cells={cells} />
   let art: any = <Text>{alt}</Text>
   if (mode !== 'text' && e.surface !== 'terminal' && Svg) {
     // Claude Code Desktop và app điện thoại không vẽ Raster/Image (chỉ là fragment rỗng): vẽ ảnh PNG qua Svg.
     const file = realmImage($.plugin.root, p)
     const b64 = custom?.b64 ?? await cachedRead(`png:${file}`, () => $.fs.read(file, { as: 'bytes' }).then((x: any) => x?.base64 ?? null, () => null))
     if (b64) art = <Svg key="realm" alt={alt} width={artPx} height={artPx} source={spriteOf(b64, smooth === 'on', artPx)} />
-  } else if ((mode === 'image' || (mode === 'raster' && custom?.file)) && Image) {
-    // Ảnh tự chọn không có bản ô màu, nên terminal có Image thì vẽ ảnh thật.
+  } else if (mode === 'raster' && custom?.cells && Raster) {
+    art = raster(custom.cells)
+  } else if ((mode === 'image' || (mode === 'raster' && custom && !custom.cells)) && Image) {
+    // Ảnh tự chọn cũ (đặt trước khi có ô màu) chỉ vẽ được bằng Image; đặt lại bằng /tutien hinh để có ô màu.
     const file0 = custom?.file
     const own = file0 && (await cachedRead(`stat:${file0}`, () => $.fs.stat(file0).then(() => 'ok', () => null))) ? file0 : null
     const file = own ?? realmImage($.plugin.root, p)
     if (own || await cachedRead(`stat:${file}`, () => $.fs.stat(file).then(() => 'ok', () => null))) {
-      art = <Image key="realm" source={{ file, format: 'png' }} columns={24} rows={12} alt={alt} />
+      art = <Image key="realm" source={{ file, format: 'png' }} columns={half ? 12 : 24} rows={half ? 6 : 12} alt={alt} />
     }
   } else if (mode === 'raster' && Raster) {
     const file = realmCells($.plugin.root, p)
     const cells = await cachedRead(`cells:${file}`, () => $.fs.read(file).then((x: any) => (x ? String(x).trim() : null), () => null))
-    if (cells) art = <Raster key="realm" columns={CELL_COLS} rows={CELL_ROWS} cells={cells} />
+    if (cells) art = raster(cells)
   }
 
   const bg = PANEL_BG[panelbg ?? 'terminal']
