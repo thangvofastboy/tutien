@@ -191,11 +191,13 @@ export const STREAK_REWARDS: { days: number; kind: 'lt' | 'artifact' | 'rare' | 
 ]
 // Chuỗi ngày hôm nay: lịch sử chỉ giữ HISTORY_DAYS ngày, nên nối tiếp bộ đếm đã lưu khi hôm qua còn trong chuỗi.
 export function streakDays(st: St, now: number): number {
-  const fromHist = streak(st.history, now)
+  // Hôm nay chưa tu lượt nào: chuỗi vẫn còn nếu hôm qua có, tính đến hôm qua thay vì báo 0 mỗi sáng.
+  const at = (st.history?.[vnDay(now)]?.t ?? 0) > 0 ? now : now - DAY
+  const fromHist = streak(st.history, at)
   if (!fromHist) return 0
   const run = st.streakRun
-  if (run?.day === vnDay(now)) return Math.max(run.n, fromHist)
-  if (run?.day === vnDay(now - DAY)) return Math.max(run.n + 1, fromHist)
+  if (run?.day === vnDay(at)) return Math.max(run.n, fromHist)
+  if (run?.day === vnDay(at - DAY)) return Math.max(run.n + 1, fromHist)
   return fromHist
 }
 export function streakStep(st: St, now: number, rng: () => number): { state: Partial<St>; events: string[] } {

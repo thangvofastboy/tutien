@@ -206,3 +206,14 @@ test('gộp lúc đang thiên phạt: EXP dư vào kho, độ kiếp xong thì r
   assert.equal(out.state.player.realm, 2)
   assert.equal(out.state.expBank, need(1))
 })
+
+test('chuỗi ngày: sáng nay chưa tu lượt nào thì vẫn giữ chuỗi tới hôm qua, không báo 0', () => {
+  const history: State['history'] = {}
+  for (let i = 1; i <= 5; i++) history[vnDay(NOW - i * DAY)] = { t: 1000, e: 1 } // 5 ngày trước, hôm nay trống
+  assert.equal(streakDays({ ...fresh(), history }, NOW), 5)
+  history[vnDay(NOW)] = { t: 1000, e: 1 }
+  assert.equal(streakDays({ ...fresh(), history }, NOW), 6)
+  delete history[vnDay(NOW - DAY)] // hôm qua bỏ: chuỗi đứt
+  delete history[vnDay(NOW)]
+  assert.equal(streakDays({ ...fresh(), history }, NOW), 0)
+})

@@ -59,7 +59,7 @@ export default {
     if (url.pathname === '/admin/releases' && req.method === 'POST') {
       // Fail closed: an unset secret must not match "Bearer undefined".
       if (!isAdmin()) return json({ error: 'forbidden' }, 403)
-      const { tag } = (await req.json()) as { tag: string }
+      const { tag } = ((await req.json().catch(() => null)) ?? {}) as { tag: string }
       if (!/^v\d+\.\d+\.\d+$/.test(tag)) return json({ error: 'bad tag' }, 400)
       const next = addRelease(await releases(), tag)
       await roster.fetch('https://do/releases', post({ releases: next }))
@@ -68,7 +68,7 @@ export default {
 
     if (url.pathname === '/admin/clear' && req.method === 'POST') {
       if (!isAdmin()) return json({ error: 'forbidden' }, 403)
-      const { name } = (await req.json()) as { name: string }
+      const { name } = ((await req.json().catch(() => null)) ?? {}) as { name: string }
       if (typeof name !== 'string' || !NAME.test(name)) return json({ error: 'bad name' }, 400)
       const res = await playerStub(name).fetch('https://do/admin-clear', post({}))
       return json({ ok: res.ok }, res.ok ? 200 : 404)
@@ -131,7 +131,7 @@ export default {
     }
 
     if (url.pathname === '/register' && req.method === 'POST') {
-      const body = (await req.json()) as any
+      const body = (await req.json().catch(() => null)) as any
       if (typeof body?.name !== 'string' || !NAME.test(body.name)) return json({ error: 'bad name' }, 400)
       if (!validLook(body)) return json({ error: 'bad appearance' }, 400)
       const key = crypto.randomUUID()

@@ -19,10 +19,12 @@ export class RosterDO {
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url)
     const now = Date.now()
+    // Đọc body TRƯỚC khi đọc storage: await req.json() không phải I/O storage nên cổng vào của DO mở,
+    // yêu cầu khác chen vào giữa get và put được, ghi đè rows/social cũ (mất hàng, mất thành viên tông).
+    const body = req.method === 'POST' ? ((await req.json().catch(() => ({}))) as any) : {}
     const rows = (await this.state.storage.get<Record<string, Row>>('rows')) ?? {}
     let social = (await this.state.storage.get<Social>('social')) ?? emptySocial()
     const snaps = () => Object.values(rows).map(snapOf)
-    const body = req.method === 'POST' ? ((await req.json().catch(() => ({}))) as any) : {}
     const saveSocial = (s: Social) => this.state.storage.put('social', s)
     const find = (n: string) => Object.values(rows).find(r => lc(r.name) === lc(n))
     const realName = (n?: string) => (n ? find(n)?.name ?? n : null)

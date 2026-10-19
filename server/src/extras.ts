@@ -204,7 +204,7 @@ export function holidayStep(hs: Extras['holidays'] = {}, now: number, tokens: nu
 // ---------- Luyện đan (spec 18.8) ----------
 export function craftPill(p: Player, pills: Extras['pills'], kind: Pill): { p?: Player; pills?: Extras['pills']; error?: string } {
   const bag = pills?.bag ?? []
-  if (!PILLS[kind]) return { error: 'Loại đan: ho-the, toc-tu, thong-thien.' }
+  if (!Object.hasOwn(PILLS, kind)) return { error: 'Loại đan: ho-the, toc-tu, thong-thien.' } // 'constructor' không lọt
   if (bag.length >= 2) return { error: 'Túi chỉ giữ tối đa 2 viên đan.' }
   const from = PILLS[kind].from
   const idx = p.artifacts.indexOf(from) >= 0 ? p.artifacts.indexOf(from) : p.artifacts.indexOf(from.toUpperCase() as Artifact)

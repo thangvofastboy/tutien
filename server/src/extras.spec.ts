@@ -158,3 +158,7 @@ test('roster bỏ qua hàng của tên đã đổi đi, trừ khi có người g
   assert.equal(acceptRow(['old'], 'Old', true), true)
   assert.equal(acceptRow([], 'X', false), true)
 })
+
+test('luyện đan: tên loại trùng thuộc tính Object (constructor) bị từ chối, không ném', () => {
+  assert.ok(craftPill(newPlayer('Kiếm Tu', 'Nam'), undefined, 'constructor' as any).error)
+})
