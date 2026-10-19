@@ -23,7 +23,7 @@ test('cùng seed thì cùng câu (pane vẽ lại liên tục không làm câu n
 })
 
 test('nhóm câu nhân vật kiếm hiệp, tu tiên: mỗi câu ghi tên truyện, có xuất hiện trong pane', () => {
-  expect(LINES.kiemhiep.length).toBeGreaterThanOrEqual(30)
+  expect(LINES.kiemhiep.length).toBeGreaterThanOrEqual(120)
   for (const l of LINES.kiemhiep) expect(l).toMatch(/^[^:()]+ \([^)]+\): /)
   const seen = new Set<string>()
   for (let s = 0; s < 400; s++) seen.add(pickLine({ realm: 12 }, s))
@@ -31,8 +31,8 @@ test('nhóm câu nhân vật kiếm hiệp, tu tiên: mỗi câu ghi tên truy�
 })
 
 test('nhóm câu hài theo nghề ngoài IT có xuất hiện trong pane; không có câu trùng trong cùng nhóm', () => {
-  expect(LINES.nghe.length).toBeGreaterThanOrEqual(40)
-  expect(LINES.funny.length).toBeGreaterThanOrEqual(60)
+  expect(LINES.nghe.length).toBeGreaterThanOrEqual(100)
+  expect(LINES.funny.length).toBeGreaterThanOrEqual(120)
   for (const g of [LINES.nghe, LINES.funny, LINES.kiemhiep]) expect(new Set(g).size).toBe(g.length)
   const seen = new Set<string>()
   for (let s = 0; s < 400; s++) seen.add(pickLine({ realm: 20 }, s))
