@@ -169,6 +169,45 @@ export const LINES = {
     'Đừng hỏi ta đang làm gì. Ta đang thở, đó là đủ.',
     'Ta đang tu tâm. Tâm thì vẫn chưa tu xong.',
   ],
+  // Câu theo phong cách nhân vật các bộ kiếm hiệp, tu tiên nổi tiếng (tự viết, không chép nguyên văn).
+  kiemhiep: [
+    'Hàn Lập (Phàm Nhân Tu Tiên): Cẩn thận là trên hết. Thấy bảo vật mà thấy cả bẫy thì... chạy trước đã.',
+    'Hàn Lập (Phàm Nhân Tu Tiên): Bình nhỏ màu xanh này? Không có gì đâu, đạo hữu đừng nhìn nữa.',
+    'Hàn Lập (Phàm Nhân Tu Tiên): Linh căn kém thì sao, uống thêm mấy bình đan là được.',
+    'Lệ Phi Vũ (Phàm Nhân Tu Tiên): Hàn huynh, sao lần nào gặp nguy huynh cũng biến mất nhanh vậy?',
+    'Mặc đại phu (Phàm Nhân Tu Tiên): Uống thuốc đúng giờ nhé, ta không hại ngươi đâu... chắc vậy.',
+    'Diệp Phàm (Già Thiên): Hoang Cổ Thánh Thể thì sao? Ăn nhiều hơn người khác chút thôi.',
+    'Hắc Hoàng (Già Thiên): Bản hoàng không phải chó! Bản hoàng là... thôi, có mộ nào để đào không?',
+    'Hắc Hoàng (Già Thiên): Trận văn này bản hoàng khắc từ thời thái cổ, đừng hỏi sao nó méo.',
+    'Đoạn Đức (Già Thiên): Đạo gia chỉ ghé thăm mộ cổ, tiện tay mang theo vài món kỷ niệm.',
+    'Đoạn Đức (Già Thiên): Vô lượng thiên tôn, cái quan tài này có chủ rồi, là bần đạo.',
+    'Tần Mục (Mục Thần Ký): Dân làng Tàn Lão dạy ta: đánh không lại thì nói cho tới khi đối phương tự nghi ngờ.',
+    'Tần Mục (Mục Thần Ký): Ta là mục dân, chăn trâu cũng là chăn, chăn thần cũng là chăn.',
+    'Tư bà bà (Mục Thần Ký): Tiểu Mục, ăn hết bát canh này, có độc hay không thì tu vi cũng tăng.',
+    'Mã gia (Mục Thần Ký): Một tay ta cũng đủ dạy ngươi, tay kia để cầm chén trà.',
+    'Hứa Thanh (Quang Âm Chi Ngoại): Trong thế giới này, tin người là xa xỉ. Tin độc dược thì rẻ hơn.',
+    'Hứa Thanh (Quang Âm Chi Ngoại): Ta không thích đánh nhau. Ta thích đánh xong rồi kiểm tra túi đồ.',
+    'Hứa Thanh (Quang Âm Chi Ngoại): Ngoài kia trời u ám, trong lòng ta thì... cũng u ám, nhưng có kế hoạch.',
+    'Thạch Hạo (Thế Giới Hoàn Mỹ): Xương chí tôn bị lấy mất? Không sao, ta tự luyện cái khác xịn hơn.',
+    'Thạch Hạo (Thế Giới Hoàn Mỹ): Hồi nhỏ ta uống sữa thú hoang, giờ uống trà vẫn thấy thiếu vị.',
+    'Tiêu Viêm (Đấu Phá Thương Khung): Ba mươi năm Hà Đông, ba mươi năm Hà Tây, chớ khinh người nghèo token!',
+    'Dược Lão (Đấu Phá Thương Khung): Tiểu tử, ở trong nhẫn lâu quá, ta quên luôn mặt trời màu gì.',
+    'Tiêu Viêm (Đấu Phá Thương Khung): Dị hỏa thứ ba rồi, mà bếp nhà vẫn chưa sửa xong.',
+    'Vương Lâm (Tiên Nghịch): Thuận thì là phàm, nghịch thì là tiên. Còn tắc đường thì là đi làm.',
+    'Mạnh Hạo (Ngã Dục Phong Thiên): Ngươi làm ta giật mình, bồi thường đi! Ba trăm linh thạch.',
+    'Mạnh Hạo (Ngã Dục Phong Thiên): Ta chỉ là thư sinh yếu đuối... vừa tiện tay phong ấn một tông môn.',
+    'Trần Bình An (Kiếm Lai): Đạo lý phải giảng cho rõ, giảng không thông thì rút kiếm giảng tiếp.',
+    'Trương Tiểu Phàm (Tru Tiên): Cây gậy đen này nhặt được ở sau núi, đừng hỏi ta sao nó hút máu.',
+    'Lệnh Hồ Xung (Tiếu Ngạo Giang Hồ): Kiếm pháp của ta học từ một ông già trên vách núi, và rượu.',
+    'Vi Tiểu Bảo (Lộc Đỉnh Ký): Võ công ta kém nhất giang hồ, nhưng chạy thì nhanh nhất thiên hạ.',
+    'Vi Tiểu Bảo (Lộc Đỉnh Ký): Nói dối một câu là tội, nói dối mười câu là... kế sách.',
+    'Kiều Phong (Thiên Long Bát Bộ): Uống với ta mười vò rượu rồi hẵng nói chuyện giang hồ.',
+    'Hồng Thất Công (Xạ Điêu Anh Hùng Truyện): Truyền Hàng Long Thập Bát Chưởng cũng được, nấu cho ta con gà trước.',
+    'Châu Bá Thông (Xạ Điêu Anh Hùng Truyện): Tay trái đánh tay phải, cả hai tay đều thắng, vui quá!',
+    'Dương Quá (Thần Điêu Hiệp Lữ): Mười sáu năm chờ đợi, còn lâu hơn chờ build xong.',
+    'Đông Phương Bất Bại (Tiếu Ngạo Giang Hồ): Một cây kim thêu thôi, đủ để sửa cả giang hồ lẫn áo.',
+    'Đoàn Dự (Thiên Long Bát Bộ): Lăng Ba Vi Bộ không phải để đánh, là để né deadline.',
+  ],
   // Câu vui, hài hước dùng chung mọi bậc.
   funny: [
     'Ta bế quan ba ngày, ra ngoài mới biết quên tắt bếp.',
@@ -337,6 +376,6 @@ export function pickLine(
   if (state.breakthrough) return pick(LINES.breakthrough)
   const group = realmGroup(state.realm) as keyof typeof LINES.realm
   if (roll < 0.3) return pick(LINES.realm[group])
-  const pool = [LINES.idle, LINES.dev, LINES.xianxia, LINES.funny, LINES.funny]
+  const pool = [LINES.idle, LINES.dev, LINES.xianxia, LINES.funny, LINES.funny, LINES.kiemhiep, LINES.kiemhiep]
   return pick(pool[Math.floor(((roll - 0.3) / 0.7) * pool.length) % pool.length])
 }

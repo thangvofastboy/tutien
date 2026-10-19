@@ -21,3 +21,11 @@ test('cùng seed thì cùng câu (pane vẽ lại liên tục không làm câu n
   for (let s = 0; s < 400; s++) seen.add(pickLine({ realm: 5 }, s))
   expect([...seen].some(l => (LINES.funny as readonly string[]).includes(l))).toBe(true)
 })
+
+test('nhóm câu nhân vật kiếm hiệp, tu tiên: mỗi câu ghi tên truyện, có xuất hiện trong pane', () => {
+  expect(LINES.kiemhiep.length).toBeGreaterThanOrEqual(30)
+  for (const l of LINES.kiemhiep) expect(l).toMatch(/^[^:()]+ \([^)]+\): /)
+  const seen = new Set<string>()
+  for (let s = 0; s < 400; s++) seen.add(pickLine({ realm: 12 }, s))
+  expect([...seen].some(l => (LINES.kiemhiep as readonly string[]).includes(l))).toBe(true)
+})
