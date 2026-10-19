@@ -29,3 +29,12 @@ test('nhóm câu nhân vật kiếm hiệp, tu tiên: mỗi câu ghi tên truy�
   for (let s = 0; s < 400; s++) seen.add(pickLine({ realm: 12 }, s))
   expect([...seen].some(l => (LINES.kiemhiep as readonly string[]).includes(l))).toBe(true)
 })
+
+test('nhóm câu hài theo nghề ngoài IT có xuất hiện trong pane; không có câu trùng trong cùng nhóm', () => {
+  expect(LINES.nghe.length).toBeGreaterThanOrEqual(40)
+  expect(LINES.funny.length).toBeGreaterThanOrEqual(60)
+  for (const g of [LINES.nghe, LINES.funny, LINES.kiemhiep]) expect(new Set(g).size).toBe(g.length)
+  const seen = new Set<string>()
+  for (let s = 0; s < 400; s++) seen.add(pickLine({ realm: 20 }, s))
+  expect([...seen].some(l => (LINES.nghe as readonly string[]).includes(l))).toBe(true)
+})
