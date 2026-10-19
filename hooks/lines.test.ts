@@ -13,3 +13,11 @@ test('pickLine luôn trả về chuỗi cho mọi bậc và mọi seed', () => {
     for (let s = 0; s < 40; s++) expect(typeof pickLine({ realm: r }, s)).toBe('string')
   }
 })
+
+test('cùng seed thì cùng câu (pane vẽ lại liên tục không làm câu nhảy); có nhóm câu vui', () => {
+  for (let s = 0; s < 50; s++) expect(pickLine({ realm: 5 }, s)).toBe(pickLine({ realm: 5 }, s))
+  expect(LINES.funny.length).toBeGreaterThanOrEqual(30)
+  const seen = new Set<string>()
+  for (let s = 0; s < 400; s++) seen.add(pickLine({ realm: 5 }, s))
+  expect([...seen].some(l => (LINES.funny as readonly string[]).includes(l))).toBe(true)
+})

@@ -169,6 +169,49 @@ export const LINES = {
     'Đừng hỏi ta đang làm gì. Ta đang thở, đó là đủ.',
     'Ta đang tu tâm. Tâm thì vẫn chưa tu xong.',
   ],
+  // Câu vui, hài hước dùng chung mọi bậc.
+  funny: [
+    'Ta bế quan ba ngày, ra ngoài mới biết quên tắt bếp.',
+    'Sư phụ dặn tâm tĩnh như nước. Nước nhà ta đang sôi.',
+    'Linh khí trời đất hội tụ... à không, là quạt máy.',
+    'Ta ngự kiếm phi hành, nhưng sợ độ cao nên bay sát đất.',
+    'Đan dược ta luyện ra màu tím. Công thức ghi màu vàng.',
+    'Đạo hữu hỏi tu vi ta bao nhiêu. Ta hỏi lại: Wi-Fi nhà ngươi pass gì?',
+    'Ta vừa đột phá... cái ghế. Ngồi mạnh quá.',
+    'Tâm Ma hiện ra, nhìn code của ta rồi lặng lẽ bỏ đi.',
+    'Pháp bảo của ta là cái bàn phím thiếu phím Esc.',
+    'Ta ngồi thiền. Con mèo ngồi lên đùi. Giờ cả hai cùng tu.',
+    'Thiên lôi đánh xuống, ta tưởng ai chụp ảnh có flash.',
+    'Ta không lười. Ta đang tiết kiệm linh lực.',
+    'Hôm nay ta ngộ ra một đạo lý: cà phê nguội vẫn là cà phê.',
+    'Tu tiên ngàn năm, vẫn thua đứa em họ chơi game.',
+    'Kiếm của ta sắc lắm, chỉ là chưa rút ra khỏi vỏ được.',
+    'Ta đọc bí kíp ba lần. Lần nào cũng ngủ ở trang hai.',
+    'Bảo tàng tu tiên có trưng bày bug đầu tiên của ta.',
+    'Ta tu luyện bằng cách nhìn thanh tiến độ. Nó cũng nhìn lại ta.',
+    'Tông môn bắt điểm danh lúc năm giờ sáng. Ta điểm danh bằng tinh thần.',
+    'Ta và Thiên Đạo đang chiến tranh lạnh. Nó không trả lời tin nhắn.',
+    'Đạo tâm vững như bàn thạch. Bàn thạch hơi lung lay chân.',
+    'Hôm qua ta bay lên trời, hôm nay bay về mẹ mắng.',
+    'Linh thú của ta là con vịt. Nó tu nhanh hơn ta.',
+    'Ta luyện Kim Cang Bất Hoại. Đã bất hoại được móng tay.',
+    'Đừng hỏi ta bao nhiêu tuổi. Hỏi ta có bao nhiêu tab đang mở.',
+    'Ta nhập định sâu tới mức quên mất mình đang họp.',
+    'Đại năng ẩn thế là ta, ẩn kỹ tới mức chính ta cũng không tìm thấy.',
+    'Ta không thất bại. Ta chỉ đang thu thập dữ liệu tu luyện.',
+    'Sư huynh bảo ta có thiên phú. Thiên phú ngủ trưa.',
+    'Tiếng sấm kia không phải thiên kiếp, là bụng ta đói.',
+    'Ta vừa dùng Thuấn Di. Thật ra là chạy nhanh vì muộn giờ.',
+    'Cảnh giới cao nhất là đọc hết docs. Chưa ai đạt tới.',
+    'Ta phong ấn được một con bug. Nó đẻ ra ba con nữa.',
+    'Tu sĩ chân chính không sợ chết, chỉ sợ hết pin.',
+    'Ta đã luyện thành Vô Ảnh Cước: đá vào cạnh bàn không ai thấy.',
+    'Mỗi lần ta gõ \'xong rồi\', Thiên Đạo lại cười.',
+    'Ta truyền công cho đệ tử. Đệ tử hỏi có bản PDF không.',
+    'Linh khí hôm nay hơi loãng. Chắc do hàng xóm cũng đang tu.',
+    'Ta đặt tên kiếm là \'Tạm Thời\'. Đã dùng được mười năm.',
+    'Bế quan thành công. Mở cửa ra thì mất wifi.',
+  ],
   realm: {
     'Luyện Khí': [
       'Ta chỉ mới học cách hít thở. Đừng cười, ai cũng từng như vậy.',
@@ -286,13 +329,14 @@ export function pickLine(
   seed: number,
 ): string {
   const pick = (list: readonly string[]) => list[Math.abs(seed) % list.length]
+  // Xúc xắc theo seed, không dùng Math.random: cùng seed thì cùng câu, pane vẽ lại (hiệu ứng 250 ms) không làm câu nhảy.
+  const roll = ((Math.imul(Math.abs(seed) + 1, 2654435761) >>> 0) % 1000) / 1000
   if (state.died) return pick(LINES.died)
   if (state.tribFailed) return pick(LINES.tribFailed)
-  if (state.tribActive) return Math.random() < 0.3 ? pick(LINES.tamma) : pick(LINES.tribActive)
+  if (state.tribActive) return roll < 0.3 ? pick(LINES.tamma) : pick(LINES.tribActive)
   if (state.breakthrough) return pick(LINES.breakthrough)
   const group = realmGroup(state.realm) as keyof typeof LINES.realm
-  const roll = Math.random()
-  if (roll < 0.4) return pick(LINES.realm[group])
-  const pool = [LINES.idle, LINES.dev, LINES.xianxia]
-  return pick(pool[Math.floor(((roll - 0.4) / 0.6) * pool.length) % pool.length])
+  if (roll < 0.3) return pick(LINES.realm[group])
+  const pool = [LINES.idle, LINES.dev, LINES.xianxia, LINES.funny, LINES.funny]
+  return pick(pool[Math.floor(((roll - 0.3) / 0.7) * pool.length) % pool.length])
 }

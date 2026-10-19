@@ -43,6 +43,14 @@ const settingsTick = atom({ plugin: 'tutien', key: 'settingsTick' } as const, 0)
 const wizard = atom({ plugin: 'tutien', key: 'wizard' } as const, { step: 0 } as Wizard)
 const wizardError = atom({ plugin: 'tutien', key: 'wizardError' } as const, null as string | null)
 const typed = atom({ plugin: 'tutien', key: 'typed' } as const, 0)
+// Câu thoại dưới ảnh đổi mỗi LINE_MS; lineTick tăng theo đồng hồ để pane vẽ lại đúng lúc đổi câu.
+export const LINE_MS = 30_000
+const lineTick = atom({ plugin: 'tutien', key: 'lineTick' } as const, 0)
+let lineClock: { cancel: () => void } | null = null
+export function startLineClock($: any): void {
+  lineClock?.cancel()
+  lineClock = $.clock.every(LINE_MS, () => void update($, lineTick, (n: number) => n + 1))
+}
 
 async function setting($: any, key: string): Promise<string | undefined> {
   return (await $.store.get(key)) as string | undefined
@@ -346,11 +354,12 @@ export async function renderPane($: any, e: any) {
     $.store.get('tutien.persona'), $.store.get('tutien.personaLines'), $.store.get('tutien.display'),
     setting($, 'tutien.panelbg'), setting($, 'tutien.compact'), look($),
   ])
+  await read($, lineTick) // đồng hồ câu thoại: đổi câu thì vẽ lại
   const line = paneLine(
     { realm: p.realm, tribActive: !!p.trib, died: active === 'red', tribFailed: active === 'rain', breakthrough: active === 'gold' },
     (persona as string | null) ?? null,
     (personaLines as string[] | null) ?? null,
-    Math.floor(Date.now() / 60_000),
+    Math.floor(Date.now() / LINE_MS),
   )
   const mode = displayMode(display)
   const custom = await avatarOf($)

@@ -5,7 +5,7 @@ import { callServer, SERVER } from './api'
 import { CLASSES, GENDERS } from './rules'
 import { HELP, tokens, parseRegister, parseReset, formatTop } from './commands'
 import { statusText } from './display'
-import { refreshPane, renderPane, renderBand, renderSettings, renderStart, startWizard, submitWizardName, logGreeting, registerPlayer, setPlayer, seedPlayer, setAvatar, isPngBase64, applyEvents, showOut, PANE_ID, SETTINGS_ID, START_ID } from './pane'
+import { refreshPane, renderPane, renderBand, renderSettings, renderStart, startWizard, submitWizardName, logGreeting, registerPlayer, setPlayer, seedPlayer, startLineClock, setAvatar, isPngBase64, applyEvents, showOut, PANE_ID, SETTINGS_ID, START_ID } from './pane'
 import { PERSONAS, personaById, buildPersonaPrompt, parsePersonaLines } from './persona'
 import { PROLOGUE, unlockedChapters } from './story'
 import { startWeb, stopWeb } from './web'
@@ -72,6 +72,7 @@ export const register: Register = on => {
     await $.store.set('tutien.version', version)
     await loadAccount($).catch(() => null)
     await seedPlayer($).catch(() => null)
+    try { startLineClock($) } catch { /* không có đồng hồ: câu đổi khi pane vẽ lại */ }
     // Phần còn lại cần mạng (cập nhật, gửi hàng đợi, hộp thư): chạy nền để mở phiên không phải chờ,
     // và mất mạng thì không làm hỏng session.start.
     void (async () => {
