@@ -47,14 +47,18 @@ function boardHtml(rows) {
     '<div class="row' + (r.me ? ' me' : '') + '"><span>' + medal(Number(r.rank)) + ' ' + esc(r.name) + '</span><span>' + esc(r.realmName) + ' · ' + (Number(r.score) || 0) + '%</span></div>').join('') + '</div>'
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+let last = ''
 async function tick() {
   const card = document.getElementById('card')
   try {
-    const s = await (await fetch('/state.json', { cache: 'no-store' })).json()
+    const raw = await (await fetch('/state.json', { cache: 'no-store' })).text()
+    if (raw === last) return // không đổi: giữ nguyên DOM, khỏi tải lại ảnh
+    last = raw
+    const s = JSON.parse(raw)
     if (!s.registered) { card.innerHTML = '<h1>🌱 Chưa Ghi Danh</h1><p class="meta">Dùng /tutien start trong Claude Code.</p>'; return }
     card.className = 'card' + (s.trib ? ' trib' : '') + (s.danger ? ' danger' : '')
     card.innerHTML =
-      '<img alt="' + esc(s.realmName) + '" src="/art.png?r=' + Number(s.realm) + '&c=' + encodeURIComponent(s.cls) + '&a=' + encodeURIComponent(s.avatar || '') + '">' +
+      '<img alt="' + esc(s.realmName) + '" src="/art.png?r=' + Number(s.realm) + '&c=' + encodeURIComponent(s.cls) + '&g=' + encodeURIComponent(s.gender) + '&a=' + encodeURIComponent(s.avatar || '') + '">' +
       '<h1>' + esc(s.icon) + ' ' + esc(s.name) + '</h1>' +
       '<div class="meta">' + esc(s.cls) + ' · ' + esc(s.gender) + '</div>' +
       '<div class="realm">' + esc(s.realmName) + ' · Bậc ' + Number(s.realm) + '/33</div>' +
@@ -62,14 +66,15 @@ async function tick() {
       '<div class="status">' + esc(s.status) + '</div>' +
       (s.trib ? '<div class="badge">⚡ Thiên Phạt · Còn ' + esc(s.trib.left) + '</div>' : '') +
       boardHtml(s.board)
-  } catch { card.innerHTML = '<p class="meta">Mất kết nối với Claude Code.</p>' }
+  } catch { last = ''; card.innerHTML = '<p class="meta">Mất kết nối với Claude Code.</p>' }
 }
 tick(); setInterval(tick, 3000)
 </script></body></html>`
 
 http.createServer((req, res) => {
   if (!hosts.has(req.headers.host || '')) { res.writeHead(403); return res.end() }
-  const url = new URL(req.url || '/', 'http://127.0.0.1')
+  let url
+  try { url = new URL(req.url || '/', 'http://127.0.0.1') } catch { res.writeHead(400); return res.end() }
   if (url.pathname === '/') {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
     return res.end(PAGE)

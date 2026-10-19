@@ -28,9 +28,9 @@ async function flush($: any): Promise<void> {
     if (r.ok && r.data?.player) latest = r.data.player
     return { ok: r.ok, status: r.status, upgrade: r.upgrade }
   })
-  if (latest) await setPlayer($, latest)
-  await applyEvents($, events)
   await $.store.set(QUEUE, left)
+  if (latest) await setPlayer($, latest).catch(() => null)
+  await applyEvents($, events).catch(() => null)
   if (left.length > 0 && (await callServer($, '/me').catch(() => ({ upgrade: false }))).upgrade) {
     await $.ui.toast('Server chưa nhận phiên bản mod này: chạy /tutien update. Nếu đã mới nhất, EXP được giữ trong hàng đợi đến khi admin đăng ký phiên bản.')
   }

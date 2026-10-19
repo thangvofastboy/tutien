@@ -70,8 +70,8 @@ export const register: Register = on => {
       version = versionFromManifest(String(manifest))
     }
     await $.store.set('tutien.version', version)
-    await loadAccount($)
-    await seedPlayer($)
+    await loadAccount($).catch(() => null)
+    await seedPlayer($).catch(() => null)
     // Phần còn lại cần mạng (cập nhật, gửi hàng đợi, hộp thư): chạy nền để mở phiên không phải chờ,
     // và mất mạng thì không làm hỏng session.start.
     void (async () => {
@@ -84,7 +84,7 @@ export const register: Register = on => {
       await logGreeting($).catch(() => null)
       await sessionNotes($).catch(() => null)
       await reconcile($).catch(() => null)
-    })()
+    })().catch(() => null)
 
     return next(e)
   })
@@ -95,7 +95,7 @@ export const register: Register = on => {
 // /tutien <lệnh>: dùng chung cho ô nhập lệnh và các nút trong panel.
 export async function runTutien($: any, args: string): Promise<{ text: string }> {
     const [sub = '', ...rest] = tokens(args)
-    const tail = args.trim().slice(sub.length).trim()
+    const tail = args.trim().replace(/^("[^"]*"|\S+)/, '').trim()
     switch (sub) {
       case 'help': case '': return { text: `${HELP}\n\nMở rộng:\n${MORE_HELP}\n\nCơ duyên và đồng môn:\n${FEATURE_HELP}` }
       case 'pane': case 'panel': { // 'panel': tên cũ, giữ để lệnh quen tay vẫn chạy
@@ -218,13 +218,18 @@ export async function runTutien($: any, args: string): Promise<{ text: string }>
       }
       case 'top': case 't': {
         const me = ((await $.store.get('tutien.name')) as string) ?? ''
-        const sections: string[] = []
-        for (const [board, title] of [['tu-vi', 'Tu vi'], ['chamchi', 'Chăm chỉ'], ['tuan', 'Tuần này'], ['phoenix', 'Phượng hoàng'], ['phapbao', 'Pháp bảo']] as const) {
-          const res = await $.http.fetch(`${SERVER}/leaderboard?board=${board}&me=${encodeURIComponent(me)}`, { method: 'GET' })
-          if (!res.ok) { sections.push(`— ${title} —\nKhông lấy được bảng này (${res.status}).`); continue }
-          sections.push(formatTop(title, JSON.parse(res.text).rows, me))
-        }
-        sections.push(...(await extraBoards($, me, (await $.store.get('tutien.realm')) as number | undefined)))
+        const boards = [['tu-vi', 'Tu vi'], ['chamchi', 'Chăm chỉ'], ['tuan', 'Tuần này'], ['phoenix', 'Phượng hoàng'], ['phapbao', 'Pháp bảo']] as const
+        const [sections, extra] = await Promise.all([
+          Promise.all(boards.map(async ([board, title]) => {
+            const res = await $.http.fetch(`${SERVER}/leaderboard?board=${board}&me=${encodeURIComponent(me)}`, { method: 'GET' }).catch(() => null)
+            try {
+              if (res?.ok) return formatTop(title, JSON.parse(res.text).rows, me)
+            } catch { /* trang lỗi không phải JSON */ }
+            return `— ${title} —\nKhông lấy được bảng này (${res?.status ?? 'mất mạng'}).`
+          })),
+          $.store.get('tutien.realm').then((realm: any) => extraBoards($, me, realm as number | undefined)).catch(() => [] as string[]),
+        ])
+        sections.push(...extra)
         return { text: sections.join('\n\n') }
       }
       default: {
@@ -252,6 +257,8 @@ export async function runUpdate($: any): Promise<string> {
     if (!up || up.exitCode !== 0) {
       return `Không tự cập nhật được. Chạy thủ công: /plugin update tutien rồi /reload-plugins.\n${up?.stderr ?? ''}`
     }
+    // CLI thoát 0 cả khi không có gì mới: khi đó không nạp lại, tránh nạp lại mỗi lần mở phiên (autoupdate).
+    if (/already at the latest/i.test(up.stdout)) return `tutien đã là bản mới nhất (${up.stdout.trim()}).`
     $.clock.after(0, () => void $.command.run({ command: 'reload-plugins' }))
     return `Đã cập nhật tutien (${up.stdout.trim() || 'xong'}); đang nạp lại plugin.`
   }

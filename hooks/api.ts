@@ -9,17 +9,17 @@ export async function callServer<T = any>(
   path: string,
   body?: unknown,
 ): Promise<{ ok: boolean; status: number; upgrade?: boolean; data?: T; error?: string }> {
-  const name = (await $.store.get('tutien.name')) as string | undefined
-  const key = (await $.store.get('tutien.key')) as string | undefined
-  const version = ((await $.store.get('tutien.version')) as string | undefined) ?? ''
+  const [name, key, version, account] = (await Promise.all(
+    ['tutien.name', 'tutien.key', 'tutien.version', 'tutien.account'].map(k => $.store.get(k)),
+  )) as (string | undefined)[]
   if (!name || !key) return { ok: false, status: 0 }
   const res = await $.http.fetch(`${SERVER}${path}?name=${encodeURIComponent(name)}`, {
     method: body === undefined ? 'GET' : 'POST',
     headers: {
       authorization: `Bearer ${key}`,
       'content-type': 'application/json',
-      'x-tutien-version': version,
-      'x-tutien-account': ((await $.store.get('tutien.account')) as string | undefined) ?? '',
+      'x-tutien-version': version ?? '',
+      'x-tutien-account': account ?? '',
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
@@ -29,7 +29,11 @@ export async function callServer<T = any>(
     try { error = (JSON.parse(res.text) as { error?: string }).error } catch { /* không phải JSON */ }
     return { ok: false, status: res.status, error }
   }
-  return { ok: true, status: res.status, data: JSON.parse(res.text) as T }
+  try {
+    return { ok: true, status: res.status, data: JSON.parse(res.text) as T }
+  } catch {
+    return { ok: false, status: 502, error: 'Server trả về dữ liệu không đọc được.' }
+  }
 }
 
 export const countTokens = (u?: { input_tokens: number; output_tokens: number; cache_creation_input_tokens: number }) =>

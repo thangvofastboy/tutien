@@ -184,6 +184,24 @@ test('/tutien update với bản cài từ marketplace: chạy claude plugin upd
   expect(reloads).toEqual(['reload-plugins'])
 })
 
+test('/tutien update từ marketplace: CLI báo đã mới nhất thì không reload (autoupdate mỗi phiên)', async ($, on) => {
+  const reloads: string[] = []
+  on('process.run', async ($, e) => {
+    const args = e.argv.join(' ')
+    if (args.startsWith('git rev-parse --is-inside-work-tree')) {
+      return { value: { exitCode: 128, stdout: '', stderr: 'not a git repository', isStdoutTruncated: false, isStderrTruncated: false } }
+    }
+    if (args === 'claude plugin update tutien') return ok('✔ tutien is already at the latest version (0.1.14).\n')
+    return ok('')
+  })
+  on('command.run', { command: 'reload-plugins' }, async ($, e) => { reloads.push(e.command); return { text: '' } })
+  const clock = mock.clock(on)
+  const { text } = await $.command.run(RUN)
+  await clock.advance(0)
+  expect(text).toContain('mới nhất')
+  expect(reloads).toEqual([])
+})
+
 test('/tutien update bỏ qua tag thử nghiệm (v1.3.0-rc1) và cập nhật lên bản phát hành mới nhất', async ($, on) => {
   const clock = mock.clock(on)
   const ran: string[] = []

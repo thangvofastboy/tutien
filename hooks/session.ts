@@ -16,6 +16,8 @@ const COMMUNITY_LINES = [
 const HOUR = 3_600_000
 
 async function home($: any): Promise<string> {
+  const env = await $.env.get('HOME').catch(() => undefined)
+  if (env) return env
   const r = await $.process.run(['printenv', 'HOME'], { timeoutMs: 10_000 }).catch(() => null)
   return r && r.exitCode === 0 ? r.stdout.trim() : ''
 }

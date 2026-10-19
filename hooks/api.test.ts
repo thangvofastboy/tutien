@@ -30,3 +30,10 @@ test('426 từ server: báo cần /tutien update, không coi là lỗi mạng', 
   expect(res.ok).toBe(false)
   expect(res.upgrade).toBe(true)
 })
+
+test('server trả 200 nhưng không phải JSON (trang lỗi Cloudflare): báo lỗi, không ném', async () => {
+  const $ = { store: store({ 'tutien.key': 'k1', 'tutien.name': 'thang' }), http: fakeHttp(200, '<html>Error 1101</html>', []) }
+  const res = await callServer($ as any, '/me')
+  expect(res.ok).toBe(false)
+  expect(res.error).toContain('không đọc được')
+})

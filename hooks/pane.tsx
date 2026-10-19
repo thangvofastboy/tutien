@@ -63,6 +63,7 @@ const artCache = new Map<string, string | null>()
 async function cachedRead(file: string, load: () => Promise<string | null>): Promise<string | null> {
   if (artCache.has(file)) return artCache.get(file)!
   const v = await load()
+  if (v === null) return null
   if (artCache.size >= 32) artCache.clear()
   artCache.set(file, v)
   return v

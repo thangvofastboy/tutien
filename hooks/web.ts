@@ -30,6 +30,7 @@ export function webState(name: string, p: Player | undefined, now: number, board
 
 // Tiến trình node sống theo module: tải lại mod hoặc hết phiên thì server dừng.
 let proc: any = null
+let lastAvatar: string | null = null // dấu phiên bản ảnh đã ghi ra web/avatar.b64
 
 export const webRunning = () => proc !== null
 
@@ -37,7 +38,10 @@ export async function writeWebState($: any, p: Player | undefined, board: WebBoa
   const [name, b64] = await Promise.all([$.store.get('tutien.name'), $.store.get('tutien.avatar')]) as [string | undefined, unknown]
   // Ảnh tự chọn ghi ra file riêng (có thể tới ~1 MB), state.json chỉ mang dấu phiên bản cho nhẹ.
   const avatar = typeof b64 === 'string' && b64 ? `${b64.length}-${b64.slice(-12)}` : null
-  if (avatar) await $.fs.write(`${$.plugin.root}/web/avatar.b64`, b64 as string)
+  if (avatar && avatar !== lastAvatar) {
+    await $.fs.write(`${$.plugin.root}/web/avatar.b64`, b64 as string)
+    lastAvatar = avatar
+  }
   await $.fs.write(`${$.plugin.root}/web/state.json`, JSON.stringify(webState(name ?? '', p, Date.now(), board, avatar)))
 }
 
