@@ -14,6 +14,7 @@ const GENDERS: readonly string[] = G
 const MAX_DEVICES = 5
 export const LINK_MS = 24 * 60 * 60_000
 const LINK_TRIES = 5
+const ABSORB_COOLDOWN = 24 * 60 * 60_000
 
 export class PlayerDO {
   constructor(private state: DurableObjectState) {}
@@ -55,7 +56,8 @@ export class PlayerDO {
     }
     // Đổi khóa: khóa mới thay mọi khóa cũ, kể cả của các máy đã liên kết.
     if (url.pathname === '/rotate' && req.method === 'POST') {
-      await save({ ...st, keyHash: body.keyHash, devices: [] })
+      // Mã liên kết đang chờ cũng bị hủy: người giữ khóa cũ không đổi được mã lấy khóa mới.
+      await save({ ...st, keyHash: body.keyHash, devices: [], link: undefined })
       return ok({ ok: true })
     }
     // Liên kết máy: máy cũ tạo mã một lần (băm), máy mới đổi mã lấy khóa riêng.
@@ -81,6 +83,12 @@ export class PlayerDO {
       await save(r.state)
       return ok({ state: r.state })
     }
+    // Khóa nhân vật cũ trong lúc gộp: gộp hoặc đổi tên song song bị từ chối nên trạng thái không bị chép hai lần.
+    if (url.pathname === '/merge-lock' && req.method === 'POST') {
+      if (st.renaming !== undefined && st.renaming > now) return bad('Nhân vật đang đổi tên hoặc gộp, thử lại sau một phút.', 409)
+      await save({ ...st, renaming: now + 60_000 })
+      return ok({ state: st })
+    }
     if (url.pathname === '/rename-unlock') {
       await save({ ...st, renaming: undefined })
       return ok({ ok: true })
@@ -93,7 +101,9 @@ export class PlayerDO {
     if (url.pathname === '/absorb') {
       const from = body.state as State
       if (!st.accountHash || from?.accountHash !== st.accountHash) return bad('Hai nhân vật không cùng tài khoản Claude.', 403)
-      await save(mergeStates(st, from))
+      // Mỗi ngày chỉ gộp một lần: nhiều nhân vật phụ không dồn hết vào một nhân vật cùng lúc để nhân hạn mức token.
+      if (st.absorbedAt !== undefined && now - st.absorbedAt < ABSORB_COOLDOWN) return bad('Mỗi ngày chỉ gộp nhân vật một lần, thử lại ngày mai.', 429)
+      await save({ ...mergeStates(st, from), absorbedAt: now })
       return ok({ ok: true, gained: cumulativeExp(from.player) })
     }
     if (url.pathname === '/export') return ok({ state: st })

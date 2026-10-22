@@ -231,6 +231,14 @@ test('gộp nhân vật cũ: cộng EXP tích lũy, linh thạch, pháp bảo, h
   assert.equal(m.name, 'chinh')
 })
 
+test('gộp giữ cờ nghi ngờ cao nhất và cộng kho EXP của nhân vật cũ', () => {
+  const main = { ...register('chinh', 'Kiếm Tu', 'Nam', 'h1'), suspicion: 2, expBank: 5 }
+  const old = { ...register('cu', 'Ma Tu', 'Nữ', 'h2'), suspicion: 12, expBank: 7 }
+  const m = mergeStates(main, old)
+  assert.equal(m.suspicion, 12)
+  assert.equal(m.expBank, 12)
+})
+
 test('gộp khi đang thiên phạt: không nhảy bậc, EXP dừng ở trần', () => {
   const main = register('chinh', 'Kiếm Tu', 'Nam', 'h1')
   main.player = { ...main.player, exp: need(1), trib: { startedAt: 0, deadline: 1, required: 1, earned: 0 } }

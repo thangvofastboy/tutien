@@ -13,8 +13,23 @@ export const snapOf = (r: Row): Snap => ({
   lastAt: r.lastAt, lastBreakthroughAt: r.lastBreakthroughAt, flagged: r.flagged,
 })
 
+// Giới hạn đăng ký mỗi giờ: theo địa chỉ (đã băm) và toàn server, chặn spam làm đầy bảng.
+const REG_PER_IP = 20
+const REG_GLOBAL = 300
+const HOUR_MS = 3_600_000
+
 export class RosterDO {
-  constructor(private state: DurableObjectState) {}
+  constructor(private state: DurableObjectState) {
+    // Chuyển khối 'rows' cũ sang mỗi người một khóa 'row:<tên thường>': /update chỉ ghi một dòng. Chạy lại được nếu bị ngắt giữa chừng.
+    state.blockConcurrencyWhile(async () => {
+      const legacy = await state.storage.get<Record<string, Row>>('rows')
+      if (!legacy) return
+      const entries = Object.values(legacy).map(r => [`row:${lc(r.name)}`, r] as const)
+      // put nhiều khóa tối đa 128 khóa mỗi lần.
+      for (let i = 0; i < entries.length; i += 100) await state.storage.put(Object.fromEntries(entries.slice(i, i + 100)))
+      await state.storage.delete('rows')
+    })
+  }
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url)
@@ -22,8 +37,11 @@ export class RosterDO {
     // Đọc body TRƯỚC khi đọc storage: await req.json() không phải I/O storage nên cổng vào của DO mở,
     // yêu cầu khác chen vào giữa get và put được, ghi đè rows/social cũ (mất hàng, mất thành viên tông).
     const body = req.method === 'POST' ? ((await req.json().catch(() => ({}))) as any) : {}
-    const rows = (await this.state.storage.get<Record<string, Row>>('rows')) ?? {}
-    let social = (await this.state.storage.get<Social>('social')) ?? emptySocial()
+    // /update (mỗi lượt của mỗi người) và vài route nhỏ không cần cả bảng lẫn quan hệ xã hội: bỏ qua việc đọc.
+    const light = url.pathname === '/update' || url.pathname === '/releases' || url.pathname === '/reg-limit'
+    const rows: Record<string, Row> = {}
+    if (!light) for (const r of (await this.state.storage.list<Row>({ prefix: 'row:' })).values()) rows[r.name] = r
+    let social = light ? emptySocial() : ((await this.state.storage.get<Social>('social')) ?? emptySocial())
     const snaps = () => Object.values(rows).map(snapOf)
     const saveSocial = (s: Social) => this.state.storage.put('social', s)
     const find = (n: string) => Object.values(rows).find(r => lc(r.name) === lc(n))
@@ -35,14 +53,25 @@ export class RosterDO {
       const revive = url.searchParams.get('revive') === '1'
       if (!acceptRow(gone, r.name, revive)) return Response.json({ ok: false, gone: true })
       if (revive && gone.includes(lc(r.name))) await this.state.storage.put('gone', gone.filter(g => g !== lc(r.name)))
-      rows[r.name] = r
-      await this.state.storage.put('rows', rows)
+      await this.state.storage.put(`row:${lc(r.name)}`, r)
+      return Response.json({ ok: true })
+    }
+    // Đăng ký quá nhanh: từ chối. Bảng đếm chỉ giữ các địa chỉ trong giờ gần nhất nên không phình ra.
+    if (url.pathname === '/reg-limit' && req.method === 'POST') {
+      const regs = (await this.state.storage.get<Record<string, { n: number; t: number }>>('regs')) ?? {}
+      for (const [k, v] of Object.entries(regs)) if (now - v.t > HOUR_MS) delete regs[k]
+      const mine = regs[body.ip] ?? { n: 0, t: now }
+      if (mine.n >= REG_PER_IP || Object.values(regs).reduce((a, v) => a + v.n, 0) >= REG_GLOBAL) return Response.json({ ok: false }, { status: 429 })
+      regs[body.ip] = { n: mine.n + 1, t: mine.t }
+      await this.state.storage.put('regs', regs)
       return Response.json({ ok: true })
     }
     if (url.pathname === '/rename' && req.method === 'POST') {
       const old = find(body.from)
-      if (old) { delete rows[old.name]; rows[body.to] = { ...old, name: body.to } }
-      await this.state.storage.put('rows', rows)
+      if (old) {
+        await this.state.storage.delete(`row:${lc(old.name)}`)
+        await this.state.storage.put(`row:${lc(body.to)}`, { ...old, name: body.to })
+      }
       // ponytail: danh sách 'gone' chỉ giữ 500 tên gần nhất (cũng áp dụng cho /remove), tên cũ hơn bị quên. Nâng cấp: tăng trần hoặc bảng riêng khi số đổi tên/xóa vượt 500.
       await this.state.storage.put('gone', [...gone.filter(g => g !== lc(body.to)), lc(body.from)].slice(-500))
       await saveSocial(renameSocial(social, body.from, body.to))
@@ -50,8 +79,7 @@ export class RosterDO {
     }
     if (url.pathname === '/remove' && req.method === 'POST') {
       const old = find(body.name)
-      if (old) delete rows[old.name]
-      await this.state.storage.put('rows', rows)
+      if (old) await this.state.storage.delete(`row:${lc(old.name)}`)
       await this.state.storage.put('gone', [...gone, lc(body.name)].slice(-500))
       await saveSocial(removeSocial(social, body.name))
       return Response.json({ ok: true })

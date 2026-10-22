@@ -357,7 +357,11 @@ export async function renderPane($: any, e: any) {
 
   const alt = `${REALM_NAMES[p.realm - 1]} (${p.cls}, ${p.gender})`
   const fx = await read($, effect)
-  const t = await read($, tick)
+  // Các atom độc lập: đọc một lượt.
+  const [t, , , sh, inf, out, boardRows] = await Promise.all([
+    read($, tick), read($, settingsTick), read($, lineTick), read($, shimmer), // đổi cài đặt, đổi câu thoại, nhịp lung linh thì vẽ lại
+    read($, info), read($, quickOut), read($, board),
+  ])
   // Terminal: một dòng chữ chạy theo nhịp. Desktop, web, điện thoại: thêm khung hoạt ảnh SVG (hạt bay, sao băng, lửa).
   const fxArt = fx && e.surface !== 'terminal' && Svg ? FX_SVG_OF[fx.kind] : undefined
   const overlay = effectActive(fx, Date.now()) && fx
@@ -369,14 +373,14 @@ export async function renderPane($: any, e: any) {
     )
     : null
   const active = effectActive(fx, Date.now()) ? fx!.kind : null
-  await read($, settingsTick) // đổi cài đặt thì vẽ lại ngay
-  // Đọc mọi cài đặt một lượt, song song.
-  const [persona, personaLines, display, panelbg, compactSetting, { th, sz }] = await Promise.all([
+  // Đọc mọi cài đặt, ảnh tự chọn, tên và cờ ẩn/hiện một lượt, song song.
+  const [persona, personaLines, display, panelbg, compactSetting, { th, sz }, custom, artSize, smooth, nameRaw, ...visRaw] = await Promise.all([
     $.store.get('tutien.persona'), $.store.get('tutien.personaLines'), $.store.get('tutien.display'),
     setting($, 'tutien.panelbg'), setting($, 'tutien.compact'), look($),
+    avatarOf($), setting($, 'tutien.artsize'), setting($, 'tutien.artsmooth'), $.store.get('tutien.name'),
+    ...VIS.map(v => setting($, v.key)),
   ])
-  await read($, lineTick) // đồng hồ câu thoại: đổi câu thì vẽ lại
-  const sh = await read($, shimmer) // nhịp lung linh của hoa văn
+  const name = (nameRaw as string | undefined) || ''
   const line = paneLine(
     { realm: p.realm, tribActive: !!p.trib, died: active === 'red', tribFailed: active === 'rain', breakthrough: active === 'gold' },
     (persona as string | null) ?? null,
@@ -384,8 +388,6 @@ export async function renderPane($: any, e: any) {
     Math.floor(Date.now() / LINE_MS),
   )
   const mode = displayMode(display)
-  const custom = await avatarOf($)
-  const [artSize, smooth] = await Promise.all([setting($, 'tutien.artsize'), setting($, 'tutien.artsmooth')])
   const artPx = ART_SIZES[artSize ?? ''] ?? ART_SIZES.vua
   // Terminal chỉ có cỡ thường và 'nho' (một nửa mỗi chiều); các cỡ lớn hơn chỉ dành cho Svg.
   const half = artSize === 'nho'
@@ -416,10 +418,8 @@ export async function renderPane($: any, e: any) {
 
   const bg = PANEL_BG[panelbg ?? 'terminal']
   const compact = compactSetting === 'on'
-  const vis = Object.fromEntries(await Promise.all(VIS.map(async v => [v.key, (await setting($, v.key)) !== 'off'] as const)))
-  const inf = await read($, info)
-  const out = await read($, quickOut)
-  const lines = boardLines(await read($, board), ((await $.store.get('tutien.name')) as string | undefined) ?? '')
+  const vis = Object.fromEntries(VIS.map((v, i) => [v.key, visRaw[i] !== 'off'] as const))
+  const lines = boardLines(boardRows, name)
   const now = Date.now()
   const rc = realmColor(p.realm)
   const pct = percentExp(p)
@@ -444,7 +444,7 @@ export async function renderPane($: any, e: any) {
   if (inf?.tamma !== null && inf?.tamma !== undefined) quest.push(<Text key="tm" size={sz.body} color="#ea80fc">👹 Xua đuổi Tâm Ma: {inf.tamma}%</Text>)
   return (
     <Box flexDirection="column" backgroundColor={bg} gap={1}>
-      <Text size={sz.body} bold color={rc}>{stateIcon(p)} {((await $.store.get('tutien.name')) as string | undefined) ?? 'Tu tiên'} · {REALM_NAMES[p.realm - 1]} · {pct}%</Text>
+      <Text size={sz.body} bold color={rc}>{stateIcon(p)} {name || 'Tu tiên'} · {REALM_NAMES[p.realm - 1]} · {pct}%</Text>
       {overlay}
       {banner ? <Text size={sz.title} bold color={banner.color}>{banner.text}</Text> : null}
       {vis['tutien.portrait'] ? (

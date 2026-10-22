@@ -13,6 +13,11 @@ import { renderWeb } from './web.ts'
 
 export { PlayerDO, RosterDO }
 
+// Danh sách bản phát hành được đọc ở mỗi yêu cầu ghi: nhớ 15 giây trong isolate để khỏi gọi RosterDO mỗi lần.
+// ponytail: isolate khác có thể thấy bản cũ tối đa 15 giây sau khi admin đăng ký tag mới.
+let releaseCache: { at: number; v: string[] } | null = null
+const RELEASE_CACHE_MS = 15_000
+
 export interface Env {
   PLAYER: DurableObjectNamespace
   ROSTER: DurableObjectNamespace
@@ -51,7 +56,12 @@ export default {
     const playerStub = (name: string) => env.PLAYER.get(env.PLAYER.idFromName(name.toLowerCase()))
     const roster = env.ROSTER.get(env.ROSTER.idFromName('team'))
     const rosterJson = async <T>(path: string, init?: RequestInit) => (await (await roster.fetch(`https://do${path}`, init)).json()) as T
-    const releases = async () => (await rosterJson<{ releases: string[] }>('/releases')).releases
+    const releases = async () => {
+      if (releaseCache && now - releaseCache.at < RELEASE_CACHE_MS) return releaseCache.v
+      const v = (await rosterJson<{ releases: string[] }>('/releases')).releases
+      releaseCache = { at: now, v }
+      return v
+    }
     const allRows = async () => (await rosterJson<{ rows: (Row & { title?: string })[] }>('/all')).rows
     const post = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) })
     const isAdmin = () => !!env.ADMIN_TOKEN && req.headers.get('authorization') === `Bearer ${env.ADMIN_TOKEN}`
@@ -63,6 +73,7 @@ export default {
       if (!/^v\d+\.\d+\.\d+$/.test(tag)) return json({ error: 'bad tag' }, 400)
       const next = addRelease(await releases(), tag)
       await roster.fetch('https://do/releases', post({ releases: next }))
+      releaseCache = { at: now, v: next }
       return json({ releases: next })
     }
 
@@ -134,6 +145,8 @@ export default {
       const body = (await req.json().catch(() => null)) as any
       if (typeof body?.name !== 'string' || !NAME.test(body.name)) return json({ error: 'bad name' }, 400)
       if (!validLook(body)) return json({ error: 'bad appearance' }, 400)
+      const ip = (await sha256(req.headers.get('cf-connecting-ip') ?? 'unknown')).slice(0, 16)
+      if ((await roster.fetch('https://do/reg-limit', post({ ip }))).status === 429) return json({ error: 'Đăng ký quá nhiều trong một giờ, thử lại sau.' }, 429)
       const key = crypto.randomUUID()
       const res = await playerStub(body.name).fetch('https://do/init', post({ name: body.name, cls: body.cls, gender: body.gender, keyHash: await sha256(key), accountHash: await accountHash(req.headers.get('x-tutien-account')) }))
       if (res.status === 409) return json({ error: 'name taken' }, 409)
@@ -165,9 +178,9 @@ export default {
     const verify = await stub.fetch('https://do/verify', post({ keyHash: await sha256(key), accountHash: await accountHash(req.headers.get('x-tutien-account')) }))
     if (verify.status === 429) return json({ error: 'locked', message: 'Sai khóa quá nhiều lần trong giờ này; chỉ khóa đúng mới được chấp nhận.' }, 429)
     if (verify.status !== 200) return json({ error: 'unauthorized' }, 401)
-    const refreshRow = async (s: DurableObjectStub = stub) => {
-      const me = (await (await s.fetch('https://do/me')).json()) as { row?: Row }
-      if (me.row) await roster.fetch('https://do/update', post(me.row))
+    const refreshRow = async (s: DurableObjectStub = stub, known?: Row) => {
+      const r = known ?? ((await (await s.fetch('https://do/me')).json()) as { row?: Row }).row
+      if (r) await roster.fetch('https://do/update', post(r))
     }
 
     if (url.pathname === '/rotate-key') {
@@ -228,10 +241,18 @@ export default {
       const target = playerStub(into)
       const ok = await target.fetch('https://do/verify', post({ keyHash: await sha256(body.intoKey), accountHash: await accountHash(req.headers.get('x-tutien-account')) }))
       if (ok.status !== 200) return json({ error: 'unauthorized target' }, 401)
-      const exp = (await (await stub.fetch('https://do/export')).json()) as { state?: any }
-      if (!exp.state) return json({ error: 'no player' }, 404)
+      const lock = await stub.fetch('https://do/merge-lock', post({}))
+      if (!lock.ok) return new Response(lock.body, { status: lock.status, headers: { 'content-type': 'application/json' } })
+      const exp = (await lock.json()) as { state?: any }
+      if (!exp.state) {
+        await stub.fetch('https://do/rename-unlock', post({}))
+        return json({ error: 'no player' }, 404)
+      }
       const res = await target.fetch('https://do/absorb', post({ state: exp.state }))
-      if (!res.ok) return new Response(res.body, { status: res.status, headers: { 'content-type': 'application/json' } })
+      if (!res.ok) {
+        await stub.fetch('https://do/rename-unlock', post({}))
+        return new Response(res.body, { status: res.status, headers: { 'content-type': 'application/json' } })
+      }
       await stub.fetch('https://do/wipe', post({}))
       await roster.fetch('https://do/remove', post({ name }))
       await refreshRow(target)
@@ -248,9 +269,10 @@ export default {
       if (!lock.ok || !locked.state) return json({ error: locked.error ?? 'Không đổi tên được.' }, lock.status)
       const fresh = playerStub(to)
       const imp = await fresh.fetch('https://do/import', post({ state: locked.state, name: to }))
-      if (imp.status === 409) {
+      if (!imp.ok) {
+        // Nhập thất bại (trùng tên hoặc lỗi tạm): mở khóa và giữ nhân vật cũ, không xóa.
         await stub.fetch('https://do/rename-unlock', post({}))
-        return json({ error: `Tên "${to}" đã có người dùng.` }, 409)
+        return json({ error: imp.status === 409 ? `Tên "${to}" đã có người dùng.` : 'Không đổi tên được, thử lại sau.' }, imp.status)
       }
       await stub.fetch('https://do/wipe', post({}))
       await roster.fetch('https://do/rename', post({ from: name, to }))
@@ -298,7 +320,7 @@ export default {
     }
     // Refresh the roster snapshot from the player's own state after every call.
     if (req.method === 'POST') await refreshRow()
-    else if (url.pathname === '/me') await refreshRow()
+    else if (url.pathname === '/me') await refreshRow(stub, data.row) // /me đã trả sẵn row: khỏi hỏi lại DO
     return json(data)
   },
 } satisfies ExportedHandler<Env>

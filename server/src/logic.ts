@@ -37,6 +37,7 @@ export type State = {
   devices?: string[] // khóa của các máy đã liên kết (băm SHA-256)
   link?: { codeHash: string; until: number; tries: number }
   renamedAt?: number
+  absorbedAt?: number // lần gộp nhân vật cũ gần nhất vào nhân vật này (giới hạn một lần mỗi ngày)
   renaming?: number // khóa đổi tên tới thời điểm này; trong lúc khóa, DO từ chối mọi lượt ghi
   accountHash?: string // tài khoản Claude của chủ nhân vật (băm); chỉ máy cùng tài khoản được liên kết
 } & Extras & Features
@@ -124,7 +125,7 @@ export function handleUsage(
   weekTokens[day] = dayUsed + tokens
 
   // EXP nhận được trong lượt (cho lịch sử và đạo lữ): chỉ khi đang tu thường, không thiên phạt, không bế quan.
-  const gainedExp = closed || st.player.trib ? 0 : Math.floor((tokens * effects(st.player, x).expMult) / TOKENS_PER_EXP)
+  const gainedExp = closed || st.player.trib || suspicion >= FLAG_AT ? 0 : Math.floor((tokens * effects(st.player, x).expMult) / TOKENS_PER_EXP)
 
   // Mở rộng (spec 18, 20, 24): đan, tháp, nhiệm vụ ngày, bí cảnh, lễ hội, thành tựu, lịch sử.
   let ex: Extras = { pills: pillAfter(st.pills, events), floors: floorsStep(st.floors, p.realm, now) }
@@ -401,7 +402,7 @@ export function mergeStates(main: State, old: State): State {
   let realm = mp.realm
   let exp = mp.exp + cumulativeExp(old.player) + Math.floor(pendingTotal / TOKENS_PER_EXP)
   // Đang thiên phạt thì không nhảy bậc: EXP dừng ở trần, phần dư vào kho, cộng dần sau mỗi lần độ kiếp.
-  let bank = main.expBank ?? 0
+  let bank = (main.expBank ?? 0) + (old.expBank ?? 0)
   if (mp.trib) { bank += Math.max(0, exp - need(realm)); exp = Math.min(exp, need(realm)) }
   else while (realm < REALM_COUNT && exp >= need(realm)) { exp -= need(realm); realm++ }
   if (realm >= REALM_COUNT) exp = Math.min(exp, need(realm))
@@ -420,6 +421,8 @@ export function mergeStates(main: State, old: State): State {
     ...main,
     player,
     expBank: bank || undefined,
+    // Nghi ngờ gian lận đi theo nhân vật cũ: gộp không rửa được cờ.
+    suspicion: Math.max(main.suspicion ?? 0, old.suspicion ?? 0) || undefined,
     congPhap: { ...cp, points: cp.points + (realm - mp.realm) },
     lifetimeTokens: main.lifetimeTokens + old.lifetimeTokens,
     deaths: main.deaths + old.deaths,
