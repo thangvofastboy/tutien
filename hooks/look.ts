@@ -54,3 +54,19 @@ export const EVENT_BANNERS: Record<string, { text: string; color: string }> = {
   treasure: { text: '🎁 Nhận Được Pháp Bảo 🎁', color: '#f2cc60' },
   badge: { text: '🏅 Thành Tựu Mới 🏅', color: '#ffd54f' },
 }
+
+// Trang trí tiên hiệp dùng chung cho thẻ trong pane, cài đặt và wizard.
+// Đường kẻ ngắn có hoa văn giữa, vừa mọi bề ngang kể cả điện thoại.
+export const ORNAMENT = '━━━━ ❖ ━━━━'
+export const ORNAMENT_SOFT = '╌╌╌ ◆ ╌╌╌'
+
+// Chấm tiến trình của wizard: ● đã qua, ◉ bước hiện tại, ○ chưa tới.
+export const stepDots = (step: number, total: number) =>
+  Array.from({ length: total }, (_, i) => (i < step ? '●' : i === step ? '◉' : '○')).join(' ')
+
+// Trộn hai màu #rrggbb theo t (0 = a, 1 = b); thanh EXP chuyển dần sang màu đại cảnh giới kế tiếp.
+export function blend(a: string, b: string, t: number): string {
+  const k = Math.max(0, Math.min(1, t))
+  const ch = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16)
+  return '#' + [0, 1, 2].map(i => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * k).toString(16).padStart(2, '0')).join('')
+}

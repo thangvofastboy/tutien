@@ -98,7 +98,12 @@ export async function runTutien($: any, args: string): Promise<{ text: string }>
     const [sub = '', ...rest] = tokens(args)
     const tail = args.trim().replace(/^("[^"]*"|\S+)/, '').trim()
     switch (sub) {
-      case 'help': case '': return { text: `${HELP}\n\nMở rộng:\n${MORE_HELP}\n\nCơ duyên và đồng môn:\n${FEATURE_HELP}` }
+      // 'list': tên khác của help. Danh sách hiện thêm trong pane, mỗi dòng tô màu theo icon.
+      case 'help': case 'list': case '': {
+        const text = `${HELP}\n\n📖 Mở rộng:\n${MORE_HELP}\n\n🌸 Cơ duyên và đồng môn:\n${FEATURE_HELP}`
+        await showOut($, '📜 Danh sách lệnh', text)
+        return { text }
+      }
       case 'pane': case 'panel': { // 'panel': tên cũ, giữ để lệnh quen tay vẫn chạy
         await $.ui.open({ id: PANE_ID, title: 'Tu tiên' })
         return { text: 'Đã mở panel Tu tiên.' }

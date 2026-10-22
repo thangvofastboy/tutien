@@ -5,7 +5,7 @@ import { REALM_NAMES, type Player } from './rules'
 import { tribEffect, overlayFrame, effectActive } from './effects'
 import { paneLine } from './persona'
 import { bandLines } from './band'
-import { realmColor, gradientRuns, meter, rankColor, EVENT_BANNERS } from './look'
+import { realmColor, gradientRuns, meter, rankColor, blend, EVENT_BANNERS, AURA, ORNAMENT, ORNAMENT_SOFT, stepDots } from './look'
 import { SETTINGS, COMMAND_GROUPS, OPEN_COMMANDS, type Setting, PANEL_BG, THEMES, TEXT_SIZES, withDefaults } from './settings'
 import { STEPS, STEP_STYLE, initWizard, advance, type Wizard } from './start'
 import { PROLOGUE, CLASS_ORIGINS, STARTER_QUESTS } from './story'
@@ -47,10 +47,20 @@ const typed = atom({ plugin: 'tutien', key: 'typed' } as const, 0)
 export const LINE_MS = 30_000
 const lineTick = atom({ plugin: 'tutien', key: 'lineTick' } as const, 0)
 let lineClock: { cancel: () => void } | null = null
+// shimmer: nhịp chậm (1,5 s) xoay dải màu tiên khí và đổi ✦/✧; tắt khi Hiệu ứng = off.
+export const SHIMMER_MS = 1500
+const shimmer = atom({ plugin: 'tutien', key: 'shimmer' } as const, 0)
+let shimmerClock: { cancel: () => void } | null = null
 export function startLineClock($: any): void {
   lineClock?.cancel()
   lineClock = $.clock.every(LINE_MS, () => void update($, lineTick, (n: number) => n + 1))
+  shimmerClock?.cancel()
+  shimmerClock = $.clock.every(SHIMMER_MS, () => {
+    void (async () => { if ((await setting($, 'tutien.effects')) !== 'off') await update($, shimmer, (n: number) => n + 1) })()
+  })
 }
+// Xoay bảng màu đi k bước để dải hoa văn chạy màu theo nhịp.
+const spin = (k: number) => AURA.map((_, i) => AURA[(i + k) % AURA.length])
 
 async function setting($: any, key: string): Promise<string | undefined> {
   return (await $.store.get(key)) as string | undefined
@@ -286,6 +296,13 @@ const QUICK = [
   { arg: 'the', label: '🪪 Thẻ khoe' },
   { arg: 'setting', label: '⚙️ Cài đặt' },
 ]
+// Nhóm nút ở cuối pane: mỗi nhóm một hàng có nhãn màu riêng cho dễ tìm.
+const QUICK_GROUPS: { label: string; color: string; args: string[] }[] = [
+  { label: '🧘 Tu hành', color: '#56d364', args: ['status', 'history', 'chuoi'] },
+  { label: '⚔️ Giang hồ', color: '#ffa657', args: ['top', 'team'] },
+  { label: '📜 Bảo vật', color: '#d2a8ff', args: ['cong-phap', 'the'] },
+  { label: '🛠️ Khác', color: '#79c0ff', args: ['setting'] },
+]
 function runQuick($: any, arg: string, label?: string) {
   void (async () => {
     const title = label ?? QUICK.find(q => q.arg === arg)?.label ?? arg
@@ -305,7 +322,11 @@ function outCard(els: any, $: any, out: Out, size?: string) {
   const { Box, Text, Button, Svg } = els
   return (
     <Box key="out" flexDirection="column" borderStyle="round" borderColor="#79c0ff" paddingX={1}>
-      <Text size={size} bold color="#79c0ff">{out.title}</Text>
+      <Box flexDirection="row" gap={1}>
+        <Text color="#79c0ff" dimColor>『</Text>
+        <Text size={size} bold color="#79c0ff">{out.title}</Text>
+        <Text color="#79c0ff" dimColor>』{ORNAMENT_SOFT}</Text>
+      </Box>
       {out.card && Svg ? <Svg key="card" alt={out.title} width={360} height={192} source={out.card} /> : null}
       {out.text.split('\n').map((t, i) => <Text key={`o-${i}`} size={size} color={lineColor(t)}>{t || ' '}</Text>)}
       {Button ? (
@@ -355,6 +376,7 @@ export async function renderPane($: any, e: any) {
     setting($, 'tutien.panelbg'), setting($, 'tutien.compact'), look($),
   ])
   await read($, lineTick) // đồng hồ câu thoại: đổi câu thì vẽ lại
+  const sh = await read($, shimmer) // nhịp lung linh của hoa văn
   const line = paneLine(
     { realm: p.realm, tribActive: !!p.trib, died: active === 'red', tribFailed: active === 'rain', breakthrough: active === 'gold' },
     (persona as string | null) ?? null,
@@ -401,12 +423,18 @@ export async function renderPane($: any, e: any) {
   const now = Date.now()
   const rc = realmColor(p.realm)
   const pct = percentExp(p)
-  const m = meter(pct, 16)
+  const m = meter(pct, 20)
+  const barColor = blend(rc, realmColor(Math.min(33, p.realm + 3)), pct / 100)
   const banner = active ? EVENT_BANNERS[active] : undefined
-  // Thẻ: khung bo tròn có tiêu đề, màu viền theo theme.
+  // Thẻ: khung bo tròn, tiêu đề đặt trong 『 』 kèm hoa văn mờ; chế độ Gọn bỏ hoa văn. Màu viền theo theme.
   const card = (key: string, title: string, color: string, body: any[]) => (
     <Box key={key} flexDirection="column" borderStyle="round" borderColor={color} paddingX={1}>
-      <Text size={sz.title} bold color={color}>{title}</Text>
+      <Box flexDirection="row" gap={1}>
+        {compact ? null : <Text color={color} dimColor>『</Text>}
+        <Text size={sz.title} bold color={color}>{title}</Text>
+        {compact ? null : <Text color={color} dimColor>』</Text>}
+        {compact ? null : <Box flexDirection="row">{gradientRuns(ORNAMENT_SOFT, spin(sh)).map((r, i) => <Text key={`co${i}`} color={r.color}>{r.ch}</Text>)}</Box>}
+      </Box>
       {body}
     </Box>
   )
@@ -416,13 +444,16 @@ export async function renderPane($: any, e: any) {
   if (inf?.tamma !== null && inf?.tamma !== undefined) quest.push(<Text key="tm" size={sz.body} color="#ea80fc">👹 Xua đuổi Tâm Ma: {inf.tamma}%</Text>)
   return (
     <Box flexDirection="column" backgroundColor={bg} gap={1}>
+      <Text size={sz.body} bold color={rc}>{stateIcon(p)} {((await $.store.get('tutien.name')) as string | undefined) ?? 'Tu tiên'} · {REALM_NAMES[p.realm - 1]} · {pct}%</Text>
       {overlay}
       {banner ? <Text size={sz.title} bold color={banner.color}>{banner.text}</Text> : null}
       {vis['tutien.portrait'] ? (
-        <Box flexDirection="column" alignItems="center" borderStyle="round" borderColor={rc} paddingX={1}>
-          <Text size={sz.title} bold color={rc}>✦ {REALM_NAMES[p.realm - 1]} ✦</Text>
+        <Box flexDirection="column" alignItems="center" borderStyle="double" borderColor={active === 'gold' && t % 2 ? '#ffd54f' : rc} paddingX={1}>
+          {compact ? null : <Box flexDirection="row">{gradientRuns(ORNAMENT, spin(sh)).map((r, i) => <Text key={`ho${i}`} color={r.color}>{r.ch}</Text>)}</Box>}
+          <Text size={sz.title} bold color={rc}>{sh % 2 ? '✧' : '✦'} {REALM_NAMES[p.realm - 1]} {sh % 2 ? '✧' : '✦'}</Text>
           {art}
-          <Text size={sz.body} color={th.quote}>{p.cls} · {p.gender}</Text>
+          <Text size={sz.body} color={th.quote}>⟦ {p.cls} · {p.gender} ⟧</Text>
+          {compact ? null : <Box flexDirection="row">{gradientRuns(ORNAMENT, spin(AURA.length - (sh % AURA.length))).map((r, i) => <Text key={`hb${i}`} color={r.color}>{r.ch}</Text>)}</Box>}
         </Box>
       ) : null}
       {vis['tutien.tu'] ? card('tu', '☯ Tu Luyện', th.title, [
@@ -437,7 +468,7 @@ export async function renderPane($: any, e: any) {
         ] : []),
         <Box key="mt" flexDirection="row">
           <Text size={sz.body} dimColor>📈 Tiến độ bậc: </Text>
-          <Text size={sz.body} color={rc}>{m.filled}</Text>
+          <Text size={sz.body} color={barColor} dimColor={sh % 2 === 1}>{m.filled}</Text>
           <Text size={sz.body} color="subtle">{m.rest}</Text>
           <Text size={sz.body} bold color={rc}> {pct}%</Text>
         </Box>,
@@ -460,17 +491,18 @@ export async function renderPane($: any, e: any) {
         ) : <Text key="kh" size={sz.body} dimColor>/tutien ky-ngo a · /tutien ky-ngo b</Text>,
       ]) : null}
       {out ? outCard($.ui.resolve(e), $, out, sz.body) : null}
-      {Button && vis['tutien.quick'] ? (
-        <Box flexDirection="row" flexWrap="wrap" gap={1}>
-          {QUICK.map(q => <Button key={`quick:${q.arg}`} onPress={() => runQuick($, q.arg)}>{q.label}</Button>)}
+      {Button && vis['tutien.quick'] ? card('nn', '⚡ Thao Tác', '#58a6ff', QUICK_GROUPS.map(g => (
+        <Box key={`qg:${g.label}`} flexDirection="row" flexWrap="wrap" gap={1} alignItems="center">
+          <Text size={sz.title} bold color={g.color}>{g.label}</Text>
+          {g.args.map(a => <Button key={`quick:${a}`} onPress={() => runQuick($, a)}>{QUICK.find(q => q.arg === a)!.label}</Button>)}
         </Box>
-      ) : null}
-      {Button ? (
-        <Box flexDirection="row" flexWrap="wrap" gap={1}>
-          {VIS.map(v => <Button key={`vis:${v.key}`} onPress={() => void toggleSetting($, v.key, vis[v.key])}>{vis[v.key] ? '✓' : '✗'} {v.label}</Button>)}
-          <Button key="vis:compact" onPress={() => void toggleSetting($, 'tutien.compact', compact)}>{compact ? '✓' : '✗'} Gọn</Button>
-        </Box>
-      ) : null}
+      ))) : null}
+      {Button ? card('hi', '🎛️ Hiển Thị', '#8b949e', [
+        <Box key="vb" flexDirection="row" flexWrap="wrap" gap={1}>
+          {VIS.map(v => <Button key={`vis:${v.key}`} onPress={() => void toggleSetting($, v.key, vis[v.key])}>{vis[v.key] ? '●' : '○'} {v.label}</Button>)}
+          <Button key="vis:compact" onPress={() => void toggleSetting($, 'tutien.compact', compact)}>{compact ? '●' : '○'} Gọn</Button>
+        </Box>,
+      ]) : null}
     </Box>
   )
 }
@@ -482,9 +514,9 @@ function resolveUi($: any, e: any) {
   const els = $.ui.resolve(e)
   return e.surface === 'mobile' ? { ...els, Select: undefined, Input: undefined } : els
 }
+// Luôn là nút bấm (không dùng Select) để chuột chọn được trên mọi bề mặt, kể cả terminal.
 export function choice(els: any, c: { key: string; label: string; options: Opt[]; value?: string; onSelect: (v: string) => void }) {
-  const { Box, Text, Button, Select } = els
-  if (Select) return <Select key={c.key} label={c.label} options={c.options} value={c.value} onSelect={c.onSelect} />
+  const { Box, Text, Button } = els
   return (
     <Box key={c.key} flexDirection="column">
       <Text bold>{c.label}</Text>
@@ -503,7 +535,10 @@ function settingChoice(els: any, s: Setting, c: { value?: string; onSelect: (v: 
   const cur = s.options.find(o => o.value === c.value)
   return (
     <Box key={s.key} flexDirection="column" borderStyle="round" borderColor={s.color} paddingX={1}>
-      <Text bold color={s.color}>{s.icon} {s.label}</Text>
+      <Box flexDirection="row" gap={1}>
+        <Text bold color={s.color}>{s.icon} {s.label}</Text>
+        <Text color={s.color} dimColor>{ORNAMENT_SOFT}</Text>
+      </Box>
       <Box flexDirection="row" flexWrap="wrap" gap={1}>
         {s.options.map(o => (
           <Button key={`${s.key}:${o.value}`} onPress={() => c.onSelect(o.value)}>{o.value === c.value ? '✓ ' : ''}{o.icon ? `${o.icon} ` : ''}{o.label}</Button>
@@ -529,11 +564,22 @@ export async function renderSettings($: any, e: any) {
   const out = await read($, quickOut)
   const { Button } = els
   return (
-    <Box flexDirection="column">
-      <Text size={sz.title} bold color={th.title}>⚙️ Cài đặt Tu Tiên</Text>
+    <Box flexDirection="column" gap={1}>
+      <Box flexDirection="column" alignItems="center">
+        <Box flexDirection="row">{gradientRuns(ORNAMENT).map((r, i) => <Text key={`so${i}`} color={r.color}>{r.ch}</Text>)}</Box>
+        <Text size={sz.title} bold color={th.title}>⚙️ Cài đặt Tu Tiên</Text>
+      </Box>
+      <Box flexDirection="column" backgroundColor={PANEL_BG[values['tutien.panelbg']]} borderStyle="round" borderColor={th.title} paddingX={1}>
+        <Text size={sz.title} bold color={th.title}>☯ Xem trước</Text>
+        <Text size={sz.body} italic color={th.quote}>💬 Lời thoại nhân vật</Text>
+        <Text size={sz.body} bold color={th.mine}>1. Tên của bạn · dòng của mình</Text>
+      </Box>
       {Button ? COMMAND_GROUPS.map(g => (
         <Box key={`cmd:${g.title}`} flexDirection="column" borderStyle="round" borderColor={g.color} paddingX={1}>
-          <Text bold color={g.color}>{g.title}</Text>
+          <Box flexDirection="row" gap={1}>
+            <Text bold color={g.color}>{g.title}</Text>
+            <Text color={g.color} dimColor>{ORNAMENT_SOFT}</Text>
+          </Box>
           <Box flexDirection="row" flexWrap="wrap" gap={1}>
             {g.items.map(i => <Button key={`cmd:${i.arg}`} onPress={() => runQuick($, i.arg, i.label)}>{i.label}</Button>)}
           </Box>
@@ -677,7 +723,12 @@ export async function renderStart($: any, e: any) {
     void update($, wizard, (x: Wizard) => ({ ...x, step: Math.max(0, x.step - 1) }))
   }
 
-  const header = <Text bold color={style.color}>{style.icon} Bước {w.step + 1}/{STEPS.length}</Text>
+  const header = (
+    <Box key="hd" flexDirection="column">
+      <Text bold color={style.color}>{style.icon} Bước {w.step + 1}/{STEPS.length}</Text>
+      <Text color={style.color}>{stepDots(w.step, STEPS.length)}</Text>
+    </Box>
+  )
   const error = err ? <Text color="error">⚠️ {err}</Text> : null
   const backBtn = w.step > 0 ? <Button key="back" onPress={back}>Quay lại</Button> : null
 
@@ -701,7 +752,12 @@ export async function renderStart($: any, e: any) {
         {header}
         <Text bold color={style.color}>Chọn lớp nhân vật</Text>
         {await stepArt($, e, CLASSES.map(c => ({ key: c, label: c, cls: c, gender: 'Nam' })))}
-        {CLASSES.map(c => <Text key={`o-${c}`} dimColor>{c}: {CLASS_ORIGINS[c]}</Text>)}
+        {CLASSES.map((c, i) => (
+          <Box key={`o-${c}`} flexDirection="row" gap={1}>
+            <Text bold color={AURA[i % AURA.length]}>{c}</Text>
+            <Text dimColor>{CLASS_ORIGINS[c]}</Text>
+          </Box>
+        ))}
         {choice(els, { key: 'cls', label: 'Lớp', options: CLASSES.map(c => ({ value: c, label: c })), value: w.cls, onSelect: go })}
         {error}{backBtn}
       </Box>

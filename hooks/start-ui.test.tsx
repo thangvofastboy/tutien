@@ -10,7 +10,7 @@ test('pane /tutien start vẽ được trên terminal và chuyển từ câu chu
   expect(await ui.find({ type: 'Text', text: /Bước 1\/7/ })).toBeDefined()
   await ui.press({ key: 'next' })
   expect(await ui.find({ type: 'Text', text: /Chọn lớp nhân vật/ })).toBeDefined()
-  expect(await ui.find({ type: 'Select', key: 'cls' })).toBeDefined()
+  expect(await ui.find({ type: 'Button', key: 'cls:Kiếm Tu' })).toBeDefined()
   const art = await ui.find({ type: 'Raster', key: 'art-Kiếm Tu' })
   expect(art?.props).toMatchObject({ columns: 24, rows: 12 })
   await ui.unmount()

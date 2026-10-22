@@ -32,3 +32,19 @@ test('hạng 1-3 có màu vàng bạc đồng; băng rôn sự kiện viết hoa
     for (const w of words) expect(w[0]).toBe(w[0].toUpperCase())
   }
 })
+
+import { stepDots } from './look'
+
+test('chấm tiến trình wizard: ● đã qua, ◉ hiện tại, ○ chưa tới', () => {
+  expect(stepDots(0, 3)).toBe('◉ ○ ○')
+  expect(stepDots(2, 4)).toBe('● ● ◉ ○')
+})
+
+import { blend } from './look'
+
+test('blend trộn hai màu theo tỉ lệ, kẹp trong 0..1', () => {
+  expect(blend('#000000', '#ffffff', 0)).toBe('#000000')
+  expect(blend('#000000', '#ffffff', 1)).toBe('#ffffff')
+  expect(blend('#000000', '#ff0000', 0.5)).toBe('#800000')
+  expect(blend('#102030', '#102030', 2)).toBe('#102030')
+})
