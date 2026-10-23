@@ -29,6 +29,7 @@ export const SETTINGS: Setting[] = [
   { key: 'tutien.board', icon: '🏆', color: '#ffd54f', label: 'Bảng Tu Vi trong panel', default: 'on', options: onOff },
   { key: 'tutien.kyngo', icon: '🎲', color: '#56d4dd', label: 'Kỳ Ngộ trong panel', default: 'on', options: onOff },
   { key: 'tutien.quick', icon: '⚡', color: '#ff7b72', label: 'Nút lệnh nhanh trong panel', default: 'on', options: onOff },
+  { key: 'tutien.autopane', icon: '🪟', color: '#79c0ff', label: 'Tự mở panel nhân vật khi mở Claude Code', default: 'on', options: onOff },
   { key: 'tutien.autoupdate', icon: '🔄', color: '#3fb950', label: 'Tự cập nhật khi mở Claude Code', default: 'off', options: onOff },
   { key: 'tutien.persona', icon: '🧙', color: '#bc8cff', label: 'Tính cách nhân vật', default: 'none',
     options: [{ value: 'none', label: 'Không', icon: '🚫' }, ...PERSONAS.map(p => ({ value: p.id, label: p.name, icon: '🎭' })), { value: 'tuy-chinh', label: 'Tùy chỉnh (đặt bằng /tutien persona tuy-chinh)', icon: '✏️' }] },

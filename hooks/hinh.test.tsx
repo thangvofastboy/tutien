@@ -102,3 +102,16 @@ test('lệnh có token đầu trong nháy ("hinh" xoa): phần sau lệnh vẫn 
   mock.store(on)
   expect((await $.command.run(RUN('"hinh" xoa'))).text).toContain('Đã bỏ ảnh')
 })
+
+for (const [store, want] of [[{}, 1], [{ 'tutien.autopane': 'off' }, 0]] as const) {
+  test(`session.start tự mở panel nhân vật (${JSON.stringify(store)} → ${want} lần)`, async ($, on) => {
+    const clock = mock.clock(on)
+    const opened: string[] = []
+    on('ui.open', async (_$: any, e: any) => { opened.push(e.id); return { value: { isPlaced: true } } as any })
+    offline(on)
+    mock.store(on, { ...store })
+    await $.session.start({ cwd: '/tmp' } as any)
+    await clock.advance(0)
+    expect(opened.length).toBe(want)
+  })
+}

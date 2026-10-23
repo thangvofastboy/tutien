@@ -76,6 +76,7 @@ export const register: Register = on => {
     // Phần còn lại cần mạng (cập nhật, gửi hàng đợi, hộp thư): chạy nền để mở phiên không phải chờ,
     // và mất mạng thì không làm hỏng session.start.
     void (async () => {
+      if ((await $.store.get('tutien.autopane')) !== 'off') await $.ui.open({ id: PANE_ID, title: 'Tu tiên' }).catch(() => null)
       if ((await $.store.get('tutien.autoupdate')) === 'on') await runUpdate($).catch(() => null)
       // Liên kết dở từ lần trước (mất phản hồi khi gộp): chọn đúng khóa trước khi gửi lượt nào.
       const linked = await resolvePendingLink($).catch(() => null)
