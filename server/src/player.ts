@@ -68,7 +68,6 @@ export class PlayerDO {
     if (url.pathname === '/link') {
       const l = st.link
       if (!l || now > l.until || l.tries >= LINK_TRIES) return bad('Mã liên kết không còn hiệu lực. Tạo mã mới bằng /tutien lien-ket.', 401)
-      if (!st.accountHash || body.accountHash !== st.accountHash) return bad('Máy này đăng nhập tài khoản Claude khác với chủ nhân vật; chỉ máy cùng tài khoản mới liên kết được.', 403)
       if (body.codeHash !== l.codeHash) {
         await save({ ...st, link: { ...l, tries: l.tries + 1 } })
         return bad('Mã liên kết sai.', 401)
@@ -97,10 +96,9 @@ export class PlayerDO {
     if (st.renaming !== undefined && st.renaming > now && req.method === 'POST' && url.pathname !== '/wipe' && url.pathname !== '/verify') {
       return bad('Nhân vật đang đổi tên, thử lại sau một phút.', 409)
     }
-    // Gộp nhân vật cũ của cùng tài khoản vào nhân vật này.
+    // Gộp nhân vật cũ vào nhân vật này (không cần cùng tài khoản Claude).
     if (url.pathname === '/absorb') {
       const from = body.state as State
-      if (!st.accountHash || from?.accountHash !== st.accountHash) return bad('Hai nhân vật không cùng tài khoản Claude.', 403)
       // Mỗi ngày chỉ gộp một lần: nhiều nhân vật phụ không dồn hết vào một nhân vật cùng lúc để nhân hạn mức token.
       if (st.absorbedAt !== undefined && now - st.absorbedAt < ABSORB_COOLDOWN) return bad('Mỗi ngày chỉ gộp nhân vật một lần, thử lại ngày mai.', 429)
       await save({ ...mergeStates(st, from), absorbedAt: now })

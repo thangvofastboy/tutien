@@ -199,11 +199,11 @@ Desktop, web và điện thoại vẽ hình SVG có hoạt ảnh: mỗi kỳ ng�
 Nhân vật gắn với tài khoản Claude của máy tạo ra nó (mod đọc `oauthAccount.accountUuid` trong `~/.claude.json`, chỉ gửi mã này, không gửi email).
 
 1. Trên máy đang có nhân vật: `/tutien lien-ket` → nhận mã 8 ký tự, hết hạn sau 24 giờ, dùng một lần.
-2. Trên máy kia, **cùng tài khoản Claude**: `/tutien dang-nhap <tên> <mã>`.
+2. Trên máy kia (tài khoản Claude nào cũng được): `/tutien dang-nhap <tên> <mã>`.
 
-Nếu máy kia đã có nhân vật riêng (cùng tài khoản Claude), `dang-nhap` gộp hết vào nhân vật chính: cộng EXP tích lũy, linh thạch, pháp bảo, huy hiệu, đồ và token, rồi **xóa nhân vật cũ**. Nếu nhân vật chính đang thiên phạt thì không nhảy bậc ngay: EXP dư vào 🏦 kho EXP, sau mỗi lần độ kiếp xong thì cộng dần vào bậc mới (mỗi bậc vẫn phải qua thiên phạt). Nếu mất kết nối đúng lúc gộp, mod tự hỏi lại server nhân vật cũ còn hay đã gộp rồi chọn đúng khóa; mất mạng hẳn thì lần mở phiên sau tự kiểm tra (hoặc gõ `/tutien dang-nhap-xong`). Tông, bạn tu và đan dược của nhân vật cũ không chuyển sang.
+Nếu máy kia đã có nhân vật riêng, `dang-nhap` gộp hết vào nhân vật chính: cộng EXP tích lũy, linh thạch, pháp bảo, huy hiệu, đồ và token, rồi **xóa nhân vật cũ**. Nếu nhân vật chính đang thiên phạt thì không nhảy bậc ngay: EXP dư vào 🏦 kho EXP, sau mỗi lần độ kiếp xong thì cộng dần vào bậc mới (mỗi bậc vẫn phải qua thiên phạt). Nếu mất kết nối đúng lúc gộp, mod tự hỏi lại server nhân vật cũ còn hay đã gộp rồi chọn đúng khóa; mất mạng hẳn thì lần mở phiên sau tự kiểm tra (hoặc gõ `/tutien dang-nhap-xong`). Tông, bạn tu và đan dược của nhân vật cũ không chuyển sang.
 
-Máy đăng nhập tài khoản Claude khác sẽ bị từ chối. `/tutien khoa-moi` đổi khóa và đăng xuất mọi máy khác.
+Token của mọi máy đã liên kết, kể cả máy dùng tài khoản Claude khác, đều cộng EXP cho nhân vật. `/tutien khoa-moi` đổi khóa và đăng xuất mọi máy khác.
 
 ## 🗣️ Claude nói theo tính cách nhân vật
 

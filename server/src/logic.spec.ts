@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { register, mergeStates, cumulativeExp, handleUsage, handleReset, boards, row, DAY_KEY } from './logic.ts'
+import { netKey, register, mergeStates, cumulativeExp, handleUsage, handleReset, boards, row, DAY_KEY } from './logic.ts'
 import { need } from '../../hooks/rules.ts'
 
 const NOW = Date.UTC(2026, 9, 14, 12)
@@ -229,6 +229,15 @@ test('gộp nhân vật cũ: cộng EXP tích lũy, linh thạch, pháp bảo, h
   assert.deepEqual(m.badges, ['a', 'b'])
   assert.deepEqual(m.player.artifacts, ['e'])
   assert.equal(m.name, 'chinh')
+})
+
+test('netKey: IPv4 giữ nguyên, IPv6 gom theo /64 kể cả dạng rút gọn', () => {
+  assert.equal(netKey('1.2.3.4'), '1.2.3.4')
+  assert.equal(netKey('2001:db8:0:0:aaaa:bbbb:cccc:dddd'), netKey('2001:db8::1'))
+  assert.notEqual(netKey('2001:db8:0:1::1'), netKey('2001:db8::1'))
+  assert.equal(netKey('2001:DB8::1'), netKey('2001:db8::1'))
+  assert.equal(netKey('::ffff:1.2.3.4'), '1.2.3.4')
+  assert.notEqual(netKey('::ffff:1.2.3.4'), netKey('::ffff:5.6.7.8'))
 })
 
 test('gộp giữ cờ nghi ngờ cao nhất và cộng kho EXP của nhân vật cũ', () => {

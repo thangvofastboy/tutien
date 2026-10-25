@@ -29,7 +29,7 @@ export const MORE_HELP = [
   '🧪 /tutien luyen-dan · uong-dan <loại>     ho-the, toc-tu, thong-thien',
   '🧘 /tutien be-quan <ngày> · be-quan xuat-quan',
   '💰 /tutien cho · mua <món> · trang-bi <món> · doi-phap-bao <e|t|d>',
-  '🔗 /tutien lien-ket · dang-nhap <tên> <mã> dùng chung nhân vật trên máy khác (cùng tài khoản Claude)',
+  '🔗 /tutien lien-ket · dang-nhap <tên> <mã> dùng chung nhân vật trên máy khác (tài khoản Claude nào cũng được)',
   '🔁 /tutien dang-nhap-xong                  kiểm tra lại lần liên kết bị mất kết nối giữa chừng',
   '📛 /tutien doi-ten <tên mới>               đổi tên nhân vật (7 ngày một lần)',
 ].join('\n')
@@ -149,7 +149,7 @@ export async function runMore($: any, sub: string, rest: string[], tail: string)
       const r = await callServer<{ code: string; minutes: number }>($, '/link-code', {})
       if (!r.ok || !r.data) return fail(r)
       const name = (await $.store.get('tutien.name')) as string
-      return `🔗 Mã liên kết: ${r.data.code} (hết hạn sau ${r.data.minutes >= 60 ? `${Math.round(r.data.minutes / 60)} giờ` : `${r.data.minutes} phút`}, dùng một lần).\nTrên máy kia (cùng tài khoản Claude), gõ: /tutien dang-nhap ${name} ${r.data.code}`
+      return `🔗 Mã liên kết: ${r.data.code} (hết hạn sau ${r.data.minutes >= 60 ? `${Math.round(r.data.minutes / 60)} giờ` : `${r.data.minutes} phút`}, dùng một lần).\nTrên máy kia (tài khoản Claude nào cũng được), gõ: /tutien dang-nhap ${name} ${r.data.code}`
     }
     case 'dang-nhap': {
       const name = arg(0), code = arg(1)

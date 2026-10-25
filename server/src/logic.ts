@@ -39,7 +39,7 @@ export type State = {
   renamedAt?: number
   absorbedAt?: number // lần gộp nhân vật cũ gần nhất vào nhân vật này (giới hạn một lần mỗi ngày)
   renaming?: number // khóa đổi tên tới thời điểm này; trong lúc khóa, DO từ chối mọi lượt ghi
-  accountHash?: string // tài khoản Claude của chủ nhân vật (băm); chỉ máy cùng tài khoản được liên kết
+  accountHash?: string // tài khoản Claude của chủ nhân vật (băm); chỉ để ghi nhận, không chặn liên kết
 } & Extras & Features
 
 // Cộng các nguồn bonus: số thì cộng, cờ thì hoặc.
@@ -386,7 +386,7 @@ export function historyOf(st: State, now: number) {
   return { days: days.map(d => ({ day: d.day, pct: Math.round((d.t / top) * 100) })), journal: journal(st.history, now) }
 }
 
-// Gộp nhân vật cũ vào nhân vật chính (cùng tài khoản): cộng EXP tích lũy, linh thạch, pháp bảo, huy hiệu, đồ,
+// Gộp nhân vật cũ vào nhân vật chính: cộng EXP tích lũy, linh thạch, pháp bảo, huy hiệu, đồ,
 // token và lịch sử theo ngày. Chính giữ tên, khóa, tông, đan dược, bí cảnh. Nhân vật cũ do người gọi xóa.
 export function cumulativeExp(p: Player): number {
   return NEED.slice(0, p.realm - 1).reduce((a, b) => a + b, 0) + p.exp
@@ -395,6 +395,18 @@ const sumMaps = (a: Record<string, number> = {}, b: Record<string, number> = {})
   const out = { ...a }
   for (const [k, v] of Object.entries(b)) out[k] = (out[k] ?? 0) + v
   return out
+}
+// Khóa giới hạn theo mạng: IPv4 giữ nguyên, IPv6 gom theo /64 (kẻ xấu thường sở hữu cả dải) sau khi bung dạng rút gọn "::".
+export function netKey(raw: string): string {
+  if (!raw.includes(':')) return raw
+  const ip = raw.toLowerCase()
+  // IPv4 nhúng trong IPv6 (::ffff:1.2.3.4): tính theo IPv4, không gom mọi địa chỉ dạng này vào một khóa.
+  if (ip.includes('.')) return ip.slice(ip.lastIndexOf(':') + 1)
+  const [h, t = ''] = ip.split('::')
+  const a = h ? h.split(':') : []
+  const b = t ? t.split(':') : []
+  const full = ip.includes('::') ? [...a, ...Array(Math.max(0, 8 - a.length - b.length)).fill('0'), ...b] : a
+  return full.slice(0, 4).map(x => x.padStart(4, '0')).join(':')
 }
 export function mergeStates(main: State, old: State): State {
   const mp = main.player

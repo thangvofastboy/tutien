@@ -6,7 +6,7 @@ import { MASTER_REWARD } from './social.ts'
 import { RosterDO } from './roster.ts'
 import { CLASSES as C, GENDERS as G, REALM_NAMES } from '../../hooks/rules.ts'
 import { upcomingHolidays } from '../../hooks/holidays.ts'
-import { sortBoards, publicBoard, versionAllowed, addRelease, validTurnId, type Row } from './logic.ts'
+import { netKey, sortBoards, publicBoard, versionAllowed, addRelease, validTurnId, type Row } from './logic.ts'
 import { ARTIFACTS, PILLS, BADGES, SHOP, GIFT_RATE } from './extras.ts'
 import { ROLES } from './social.ts'
 import { renderWeb } from './web.ts'
@@ -145,11 +145,14 @@ export default {
       const body = (await req.json().catch(() => null)) as any
       if (typeof body?.name !== 'string' || !NAME.test(body.name)) return json({ error: 'bad name' }, 400)
       if (!validLook(body)) return json({ error: 'bad appearance' }, 400)
-      const ip = (await sha256(req.headers.get('cf-connecting-ip') ?? 'unknown')).slice(0, 16)
+      const ip = (await sha256(netKey(req.headers.get('cf-connecting-ip') ?? 'unknown'))).slice(0, 16)
       if ((await roster.fetch('https://do/reg-limit', post({ ip }))).status === 429) return json({ error: 'Đăng ký quá nhiều trong một giờ, thử lại sau.' }, 429)
       const key = crypto.randomUUID()
       const res = await playerStub(body.name).fetch('https://do/init', post({ name: body.name, cls: body.cls, gender: body.gender, keyHash: await sha256(key), accountHash: await accountHash(req.headers.get('x-tutien-account')) }))
-      if (res.status === 409) return json({ error: 'name taken' }, 409)
+      if (res.status === 409) {
+        await roster.fetch('https://do/reg-limit', post({ ip, release: true }))
+        return json({ error: 'name taken' }, 409)
+      }
       // Có mặt trong danh sách ngay, để người khác tìm, mời và xếp hạng được.
       const me = (await (await playerStub(body.name).fetch('https://do/me')).json()) as { row?: Row }
       if (me.row) await roster.fetch('https://do/update?revive=1', post(me.row))

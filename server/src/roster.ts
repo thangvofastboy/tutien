@@ -15,7 +15,7 @@ export const snapOf = (r: Row): Snap => ({
 
 // Giới hạn đăng ký mỗi giờ: theo địa chỉ (đã băm) và toàn server, chặn spam làm đầy bảng.
 const REG_PER_IP = 20
-const REG_GLOBAL = 300
+const REG_GLOBAL = 2000 // trần cao: chỉ chặn tràn lan, một người không khóa được mọi lượt đăng ký của cả team
 const HOUR_MS = 3_600_000
 
 export class RosterDO {
@@ -61,8 +61,14 @@ export class RosterDO {
       const regs = (await this.state.storage.get<Record<string, { n: number; t: number }>>('regs')) ?? {}
       for (const [k, v] of Object.entries(regs)) if (now - v.t > HOUR_MS) delete regs[k]
       const mine = regs[body.ip] ?? { n: 0, t: now }
-      if (mine.n >= REG_PER_IP || Object.values(regs).reduce((a, v) => a + v.n, 0) >= REG_GLOBAL) return Response.json({ ok: false }, { status: 429 })
-      regs[body.ip] = { n: mine.n + 1, t: mine.t }
+      // Giữ chỗ ngay lúc kiểm tra (DO chạy tuần tự) để nhiều yêu cầu song song không vượt hạn mức;
+      // tên đã có người dùng thì trả lại lượt (release), nên không tốn hạn mức.
+      if (body.release === true) {
+        if (mine.n > 0) regs[body.ip] = { n: mine.n - 1, t: mine.t }
+      } else {
+        if (mine.n >= REG_PER_IP || Object.values(regs).reduce((a, v) => a + v.n, 0) >= REG_GLOBAL) return Response.json({ ok: false }, { status: 429 })
+        regs[body.ip] = { n: mine.n + 1, t: mine.t }
+      }
       await this.state.storage.put('regs', regs)
       return Response.json({ ok: true })
     }

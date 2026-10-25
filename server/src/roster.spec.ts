@@ -50,3 +50,12 @@ test('giới hạn đăng ký: quá 20 lần mỗi địa chỉ trong giờ thì
   assert.equal(blocked.status, 429)
   assert.equal((await call(r, '/reg-limit', { ip: 'b' })).ok, true)
 })
+
+test('tên trùng trả lại lượt (release) nên không tốn hạn mức', async () => {
+  const { state } = fakeState()
+  const r = new RosterDO(state)
+  for (let i = 0; i < 50; i++) {
+    assert.equal((await call(r, '/reg-limit', { ip: 'c' })).ok, true)
+    await call(r, '/reg-limit', { ip: 'c', release: true })
+  }
+})
