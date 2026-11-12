@@ -61,6 +61,7 @@ export const register: Register = on => {
       name: 'tutien',
       description: 'Tu tien: update pulls the newest tag and reloads plugins',
       argumentHint: 'pane | update | autoupdate on|off',
+      immediate: true,
     })
     // Bản clone git: phiên bản theo tag. Bản cài từ marketplace (không có git): theo plugin.json.
     const described = await $.process.run(['git', 'describe', '--tags', '--abbrev=0', 'HEAD'], { cwd: $.plugin.root, timeoutMs: 30_000 }).catch(() => null)
