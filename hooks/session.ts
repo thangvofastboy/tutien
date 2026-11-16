@@ -133,15 +133,28 @@ export async function reconcile($: any, now = Date.now()): Promise<void> {
     const seen = new Set<string>()
     const since = Date.parse(`${day}T00:00:00+07:00`) // file sửa trước đầu ngày cần tính thì không có lượt của ngày đó
     total = 0
+    let read = 0
+    let partial = false
     const walk = async (dir: string, depth: number): Promise<void> => {
       for (const e of await $.fs.list(dir).catch(() => [])) {
         const p = `${dir}/${e.name}`
         if (e.kind === 'directory' && depth < 3) await walk(p, depth + 1)
+        else if (!e.name.endsWith('.jsonl') || !(e.mtimeMs >= since)) continue
         // File transcript quá lớn (hàng trăm MB) thì bỏ qua thay vì đọc hết vào bộ nhớ lúc mở phiên.
-        else if (e.name.endsWith('.jsonl') && e.mtimeMs >= since && !(Number(e.size) > TRANSCRIPT_MAX)) total += sumTranscript(String(await $.fs.read(p).catch(() => '')), day, seen)
+        else if (Number(e.size) > TRANSCRIPT_MAX) partial = true
+        else {
+          const text = await $.fs.read(p).catch(() => null)
+          if (text === null) partial = true
+          else { read++; total += sumTranscript(String(text), day, seen) }
+        }
       }
     }
     await walk(root, 0)
+    // Đếm thiếu (không đọc được thư mục, bỏ file lớn, đọc lỗi) thì server tưởng là gian lận: bỏ qua ngày này.
+    if (read === 0 || partial) {
+      await $.store.set('tutien.reconciled', day)
+      return
+    }
     await $.store.set('tutien.reconcileTotal', { day, total })
   }
   const r = await callServer($, '/reconcile', { day, tokens: total })

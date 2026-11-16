@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 // Durable Object một người chơi: giữ State, áp luật qua logic.ts và extras.ts.
-import { mergeStates, cumulativeExp, handleUsage, handleGift, handleReset, renameLock, row, recordFail, verifyDecision, settleState, statusOf, historyOf, type State } from './logic.ts'
+import { mergeStates, cumulativeExp, handleUsage, handleGift, handleCredit, handleReset, renameLock, row, recordFail, verifyDecision, settleState, statusOf, historyOf, type State } from './logic.ts'
 import {
   bicanhJoin, craftPill, usePill, beQuanStart, beQuanEnd, sellArtifact, buyItem, SHOP, pushInbox, reconcileStep,
   type Pill,
@@ -117,6 +117,11 @@ export class PlayerDO {
     if (url.pathname === '/admin-clear' && req.method === 'POST') {
       await save({ ...st, suspicion: 0 })
       return ok({ ok: true })
+    }
+    if (url.pathname === '/admin-credit' && req.method === 'POST') {
+      const r = handleCredit(st, String(body.day), Number(body.tokens), now, Math.random)
+      if (r.credited > 0) await save(r.state)
+      return ok({ credited: r.credited, before: r.before, error: r.error })
     }
     if (url.pathname === '/me') {
       const settled = settleState(st, now)

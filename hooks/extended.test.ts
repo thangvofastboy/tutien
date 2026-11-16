@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { historyChart, statusLines, findLines, libraryLines, artifactNames } from './views'
-import { breakCheck, sumTranscript, personaSection } from './session'
+import { breakCheck, sumTranscript, personaSection, reconcile } from './session'
 import { accountFromConfig } from './api'
 import { boardLines } from './pane'
 import { webState } from './web'
@@ -78,4 +78,48 @@ test('lịch lễ: Tết 2026 năm ngày, ngày giờ Việt Nam', () => {
   expect(holidaysOf(2026).find(h => h.name === 'Tết Nguyên Đán')?.days.length).toBe(5)
   expect(vnDay(Date.parse('2026-10-14T18:00:00Z'))).toBe('2026-10-15')
   expect(upcomingHolidays(Date.parse('2026-08-25T00:00:00Z'), 10).some(h => h.name === 'Quốc Khánh')).toBe(true)
+})
+
+// Giả $ tối thiểu cho reconcile: một thư mục project, file theo tên, ghi lại lời gọi server.
+function fakeReconcile(files: Record<string, { size?: number; text: string | null }>) {
+  const store = new Map<string, unknown>([['tutien.name', 'thang'], ['tutien.key', 'k']])
+  const posts: any[] = []
+  const $ = {
+    env: { get: async () => '/h' },
+    store: { get: async (k: string) => store.get(k), set: async (k: string, v: unknown) => { store.set(k, v) } },
+    fs: {
+      list: async (dir: string) => dir === '/h/.claude/projects'
+        ? [{ name: 'p', kind: 'directory' }]
+        : Object.entries(files).map(([name, f]) => ({ name, kind: 'file', mtimeMs: Date.parse('2026-11-15T12:00:00+07:00'), size: f.size ?? 10 })),
+      read: async (p: string) => { const t = files[p.split('/').pop()!]?.text; if (t === null) throw new Error('denied'); return t },
+    },
+    http: { fetch: async (_u: string, init: any) => { posts.push(JSON.parse(init.body)); return { status: 200, ok: true, headers: {}, text: '{}' } } },
+    clock: { after: () => ({ cancel() {} }) },
+  }
+  return { $, store, posts }
+}
+const NOV16 = Date.parse('2026-11-16T09:00:00+07:00')
+const LINE = JSON.stringify({ timestamp: '2026-11-15T05:00:00Z', requestId: 'r1', message: { id: 'm1', usage: { input_tokens: 100, output_tokens: 20, cache_creation_input_tokens: 0 } } })
+
+test('đối chiếu: đọc đủ transcript thì gửi tổng hôm qua', async () => {
+  const f = fakeReconcile({ 'a.jsonl': { text: LINE } })
+  await reconcile(f.$, NOV16)
+  expect(f.posts).toEqual([{ day: '2026-11-15', tokens: 120 }])
+  expect(f.store.get('tutien.reconciled')).toBe('2026-11-15')
+})
+
+test('đối chiếu: không đọc được transcript nào thì không gửi 0 lên server', async () => {
+  const f = fakeReconcile({})
+  await reconcile(f.$, NOV16)
+  expect(f.posts).toEqual([])
+  expect(f.store.get('tutien.reconciled')).toBe('2026-11-15')
+})
+
+test('đối chiếu: bỏ file quá lớn hoặc đọc lỗi thì không gửi con số thiếu', async () => {
+  const big = fakeReconcile({ 'a.jsonl': { text: LINE }, 'b.jsonl': { size: 200 * 1024 * 1024, text: LINE } })
+  await reconcile(big.$, NOV16)
+  expect(big.posts).toEqual([])
+  const denied = fakeReconcile({ 'a.jsonl': { text: LINE }, 'b.jsonl': { text: null } })
+  await reconcile(denied.$, NOV16)
+  expect(denied.posts).toEqual([])
 })

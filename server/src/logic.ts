@@ -213,6 +213,37 @@ export function handleGift(st: State, amount: number, now: number, rng: () => nu
   return { state: { ...st, player: r.p, gift: g.gift, pills: pillAfter(st.pills, r.events) }, given: g.give }
 }
 
+// Admin nạp bù token cho một ngày mod không gửi được: `tokens` là tổng cả ngày (đếm từ transcript),
+// chỉ cộng phần server còn thiếu so với tổng đó, nên gọi lại cùng số không cộng hai lần.
+export function handleCredit(st: State, day: string, tokens: number, now: number, rng: () => number): { state: State; credited: number; before: number; error?: string } {
+  const at = Date.parse(`${day}T12:00:00+07:00`)
+  const before = st.history?.[day]?.t ?? 0
+  // Chỉ ngày đã qua (hôm nay /usage vẫn đang cộng) và trong 30 ngày gần nhất.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !(day < vnDay(now)) || !(at > now - 30 * DAY_MS)) return { state: st, credited: 0, before, error: 'bad day' }
+  // Bị đánh dấu hoặc đang bế quan: không ghi, nếu không token vào lịch sử mà EXP mất và không nạp lại được.
+  if ((st.suspicion ?? 0) >= FLAG_AT || inBeQuan(st.beQuan, now)) return { state: st, credited: 0, before, error: 'frozen' }
+  const target = Math.min(MAX_TOKENS_PER_DAY, Math.max(0, Math.floor(Number(tokens) || 0)))
+  const credited = Math.max(0, target - before)
+  if (credited === 0) return { state: st, credited: 0, before }
+  const x = pillExtra(st.pills, now)
+  const r = applyUsage(st.player, credited, now, rng, x)
+  const gained = st.player.trib ? 0 : Math.floor((credited * effects(st.player, x).expMult) / TOKENS_PER_EXP)
+  const weekTokens = { ...st.weekTokens }
+  if (at > now - 7 * DAY_MS) weekTokens[DAY_KEY(at)] = (weekTokens[DAY_KEY(at)] ?? 0) + credited
+  return {
+    state: {
+      ...st,
+      player: r.p,
+      pills: pillAfter(st.pills, r.events),
+      history: recordDay(st.history, at, credited, gained, r.events),
+      lifetimeTokens: st.lifetimeTokens + credited,
+      weekTokens,
+    },
+    credited,
+    before,
+  }
+}
+
 // Đổi tên (một request trong DO cũ, nên không có hai lần đổi chạy song song): kiểm tra hạn 7 ngày rồi khóa 60 giây.
 export const RENAME_COOLDOWN = 7 * DAY_MS
 export function renameLock(st: State, now: number): { state: State; error?: string } {

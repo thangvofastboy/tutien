@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { netKey, register, mergeStates, cumulativeExp, handleUsage, handleReset, boards, row, DAY_KEY } from './logic.ts'
+import { netKey, register, mergeStates, cumulativeExp, handleUsage, handleCredit, handleReset, boards, row, DAY_KEY } from './logic.ts'
 import { need } from '../../hooks/rules.ts'
 
 const NOW = Date.UTC(2026, 9, 14, 12)
@@ -256,4 +256,38 @@ test('gộp khi đang thiên phạt: không nhảy bậc, EXP dừng ở trần'
   const m = mergeStates(main, old)
   assert.equal(m.player.realm, 1)
   assert.equal(m.player.exp, need(1))
+})
+
+test('admin nạp bù: cộng đúng ngày, gọi lại cùng tổng không cộng hai lần', () => {
+  const now = Date.parse('2026-11-16T10:00:00+07:00')
+  let st = register('thang', 'Thể Tu', 'Nam', 'h')
+  const a = handleCredit(st, '2026-11-15', 3_000_000, now, never)
+  assert.equal(a.credited, 3_000_000)
+  assert.equal(a.state.history?.['2026-11-15']?.t, 3_000_000)
+  assert.equal(a.state.lifetimeTokens, 3_000_000)
+  assert.ok(a.state.player.exp > st.player.exp || a.state.player.realm > st.player.realm)
+  st = a.state
+  assert.equal(handleCredit(st, '2026-11-15', 3_000_000, now, never).credited, 0)
+  assert.equal(handleCredit(st, '2026-11-15', 3_500_000, now, never).credited, 500_000)
+})
+
+test('admin nạp bù: không nhận hôm nay, ngày tương lai, ngày quá 30 ngày; trần 40 triệu/ngày', () => {
+  const now = Date.parse('2026-11-16T10:00:00+07:00')
+  const st = register('thang', 'Thể Tu', 'Nam', 'h')
+  assert.equal(handleCredit(st, '2026-11-16', 1000, now, never).credited, 0)
+  assert.equal(handleCredit(st, '2026-11-20', 1000, now, never).credited, 0)
+  assert.equal(handleCredit(st, '2026-10-01', 1000, now, never).credited, 0)
+  assert.equal(handleCredit(st, 'bad', 1000, now, never).credited, 0)
+  assert.equal(handleCredit(st, '2026-11-14', 99_000_000, now, never).credited, 40_000_000)
+})
+
+test('admin nạp bù: người bị đánh dấu thì không ghi gì, trả về tổng cũ để chạy thử', () => {
+  const now = Date.parse('2026-11-16T10:00:00+07:00')
+  const st = { ...register('thang', 'Thể Tu', 'Nam', 'h'), suspicion: 10 }
+  const r = handleCredit(st, '2026-11-15', 1_000_000, now, never)
+  assert.equal(r.credited, 0)
+  assert.equal(r.error, 'frozen')
+  assert.equal(r.state, st)
+  const dry = handleCredit(register('thang', 'Thể Tu', 'Nam', 'h'), '2026-11-15', 0, now, never)
+  assert.deepEqual([dry.credited, dry.before, dry.error], [0, 0, undefined])
 })

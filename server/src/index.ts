@@ -104,6 +104,22 @@ export default {
       return json({ ok: res.ok }, res.ok ? 200 : 404)
     }
 
+    // Nạp bù token cho ngày mod không gửi được (body: name, day YYYY-MM-DD giờ VN, tokens = tổng cả ngày).
+    if (url.pathname === '/admin/credit' && req.method === 'POST') {
+      if (!isAdmin()) return json({ error: 'forbidden' }, 403)
+      const { name, day, tokens } = ((await req.json().catch(() => null)) ?? {}) as { name: string; day: string; tokens: number }
+      if (typeof name !== 'string' || !NAME.test(name) || !Number.isFinite(Number(tokens))) return json({ error: 'bad credit' }, 400)
+      const s = playerStub(name)
+      const res = await s.fetch('https://do/admin-credit', post({ day, tokens }))
+      if (!res.ok) return json({ error: 'no player' }, 404)
+      const out = (await res.json()) as { credited: number; before: number; error?: string }
+      if (out.credited > 0) {
+        const r = ((await (await s.fetch('https://do/me')).json()) as { row?: Row }).row
+        if (r) await roster.fetch('https://do/update', post(r))
+      }
+      return json(out, out.error === 'bad day' ? 400 : 200)
+    }
+
     // ---------- Đọc công khai: bảng, team, hồ sơ, thư viện, trang web ----------
     if (url.pathname === '/leaderboard' && req.method === 'GET') {
       const boardName = url.searchParams.get('board') ?? 'tu-vi'
