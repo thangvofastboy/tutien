@@ -2,7 +2,7 @@
 // Durable Object danh sách cả team: ảnh chụp từng người (bảng xếp hạng), phiên bản, và quan hệ xã hội (tông, bạn, đạo lữ, mùa).
 import { sortBoards, type Row } from './logic.ts'
 import {
-  emptySocial, ctxFor, memberOf, tongCreate, tongJoin, tongLeave, tongAppoint, tongWeek, invite, accept, unpair,
+  emptySocial, ctxFor, memberOf, tongCreate, tongJoin, tongLeave, tongAppoint, tongKick, tongWeek, invite, accept, unpair,
   seasonStep, titleOf, community, teamProgress, tongBoard, thienDaoEvent, canCongrats, ROLES,
   renameSocial, removeSocial, acceptRow, congratsOnce, tongWar, teamWeek, baiSu, nhanDo, suDoHuy, disciplesOf, type Social, type Snap, type Role,
 } from './social.ts'
@@ -19,15 +19,25 @@ const REG_GLOBAL = 2000 // trần cao: chỉ chặn tràn lan, một người kh
 const HOUR_MS = 3_600_000
 
 export class RosterDO {
+  // Bảng, quan hệ xã hội và danh sách đã xóa nằm trong bộ nhớ của DO (nạp một lần lúc khởi động),
+  // mọi ghi đi thẳng xuống storage. Trước đây mỗi /ctx, /social-info, /all… quét lại toàn bộ 'row:'.
+  // ponytail: cả team nằm trong RAM của một DO; tách theo nhóm khi số người lên hàng chục nghìn.
+  private rows = new Map<string, Row>()
+  private social: Social = emptySocial()
+  private gone: string[] = []
   constructor(private state: DurableObjectState) {
     // Chuyển khối 'rows' cũ sang mỗi người một khóa 'row:<tên thường>': /update chỉ ghi một dòng. Chạy lại được nếu bị ngắt giữa chừng.
     state.blockConcurrencyWhile(async () => {
       const legacy = await state.storage.get<Record<string, Row>>('rows')
-      if (!legacy) return
-      const entries = Object.values(legacy).map(r => [`row:${lc(r.name)}`, r] as const)
-      // put nhiều khóa tối đa 128 khóa mỗi lần.
-      for (let i = 0; i < entries.length; i += 100) await state.storage.put(Object.fromEntries(entries.slice(i, i + 100)))
-      await state.storage.delete('rows')
+      if (legacy) {
+        const entries = Object.values(legacy).map(r => [`row:${lc(r.name)}`, r] as const)
+        // put nhiều khóa tối đa 128 khóa mỗi lần.
+        for (let i = 0; i < entries.length; i += 100) await state.storage.put(Object.fromEntries(entries.slice(i, i + 100)))
+        await state.storage.delete('rows')
+      }
+      for (const row of (await state.storage.list<Row>({ prefix: 'row:' })).values()) this.rows.set(lc(row.name), row)
+      this.social = (await state.storage.get<Social>('social')) ?? emptySocial()
+      this.gone = (await state.storage.get<string[]>('gone')) ?? []
     })
   }
 
@@ -37,22 +47,21 @@ export class RosterDO {
     // Đọc body TRƯỚC khi đọc storage: await req.json() không phải I/O storage nên cổng vào của DO mở,
     // yêu cầu khác chen vào giữa get và put được, ghi đè rows/social cũ (mất hàng, mất thành viên tông).
     const body = req.method === 'POST' ? ((await req.json().catch(() => ({}))) as any) : {}
-    // /update (mỗi lượt của mỗi người) và vài route nhỏ không cần cả bảng lẫn quan hệ xã hội: bỏ qua việc đọc.
-    const light = url.pathname === '/update' || url.pathname === '/releases' || url.pathname === '/reg-limit'
-    const rows: Record<string, Row> = {}
-    if (!light) for (const r of (await this.state.storage.list<Row>({ prefix: 'row:' })).values()) rows[r.name] = r
-    let social = light ? emptySocial() : ((await this.state.storage.get<Social>('social')) ?? emptySocial())
-    const snaps = () => Object.values(rows).map(snapOf)
-    const saveSocial = (s: Social) => this.state.storage.put('social', s)
-    const find = (n: string) => Object.values(rows).find(r => lc(r.name) === lc(n))
+    const all = () => [...this.rows.values()]
+    let social = this.social
+    const snaps = () => all().map(snapOf)
+    // Gán bộ nhớ trước khi await: yêu cầu chen vào giữa thấy ngay bản mới.
+    const saveSocial = (s: Social) => { this.social = s; return this.state.storage.put('social', s) }
+    const saveGone = (g: string[]) => { this.gone = g; return this.state.storage.put('gone', g) }
+    const find = (n: string) => this.rows.get(lc(n))
     const realName = (n?: string) => (n ? find(n)?.name ?? n : null)
-
-    const gone = (await this.state.storage.get<string[]>('gone')) ?? []
+    const gone = this.gone
     if (url.pathname === '/update' && req.method === 'POST') {
       const r = body as Row
       const revive = url.searchParams.get('revive') === '1'
       if (!acceptRow(gone, r.name, revive)) return Response.json({ ok: false, gone: true })
-      if (revive && gone.includes(lc(r.name))) await this.state.storage.put('gone', gone.filter(g => g !== lc(r.name)))
+      if (revive && gone.includes(lc(r.name))) await saveGone(gone.filter(g => g !== lc(r.name)))
+      this.rows.set(lc(r.name), r)
       await this.state.storage.put(`row:${lc(r.name)}`, r)
       return Response.json({ ok: true })
     }
@@ -75,18 +84,20 @@ export class RosterDO {
     if (url.pathname === '/rename' && req.method === 'POST') {
       const old = find(body.from)
       if (old) {
+        this.rows.delete(lc(old.name))
+        this.rows.set(lc(body.to), { ...old, name: body.to })
         await this.state.storage.delete(`row:${lc(old.name)}`)
         await this.state.storage.put(`row:${lc(body.to)}`, { ...old, name: body.to })
       }
       // ponytail: danh sách 'gone' chỉ giữ 500 tên gần nhất (cũng áp dụng cho /remove), tên cũ hơn bị quên. Nâng cấp: tăng trần hoặc bảng riêng khi số đổi tên/xóa vượt 500.
-      await this.state.storage.put('gone', [...gone.filter(g => g !== lc(body.to)), lc(body.from)].slice(-500))
+      await saveGone([...gone.filter(g => g !== lc(body.to)), lc(body.from)].slice(-500))
       await saveSocial(renameSocial(social, body.from, body.to))
       return Response.json({ ok: true })
     }
     if (url.pathname === '/remove' && req.method === 'POST') {
       const old = find(body.name)
-      if (old) await this.state.storage.delete(`row:${lc(old.name)}`)
-      await this.state.storage.put('gone', [...gone, lc(body.name)].slice(-500))
+      if (old) { this.rows.delete(lc(old.name)); await this.state.storage.delete(`row:${lc(old.name)}`) }
+      await saveGone([...gone, lc(body.name)].slice(-500))
       await saveSocial(removeSocial(social, body.name))
       return Response.json({ ok: true })
     }
@@ -99,9 +110,9 @@ export class RosterDO {
     }
     if (url.pathname === '/all') {
       // Ghi người thắng mùa trước ở lần đọc đầu tiên của mùa mới.
-      const next = seasonStep(social, sortBoards(Object.values(rows)).tuVi[0]?.name, now)
+      const next = seasonStep(social, sortBoards(all()).tuVi[0]?.name, now)
       if (next !== social) await saveSocial(next)
-      const titled = Object.values(rows).map(r => ({ ...r, title: titleOf(next, r.name, now) }))
+      const titled = all().map(r => ({ ...r, title: titleOf(next, r.name, now) }))
       return Response.json({ rows: titled })
     }
     if (url.pathname === '/ctx') {
@@ -114,10 +125,10 @@ export class RosterDO {
         tongs: tongBoard(social, snaps()),
         event: thienDaoEvent(now),
         seasons: social.seasons,
-        players: Object.keys(rows).length,
+        players: this.rows.size,
         war: tongWar(social, snaps()),
         teamWeek: teamWeek(snaps()),
-        recent: Object.values(rows).filter(r => r.lastBreakthroughAt && now - r.lastBreakthroughAt < 7 * 86_400_000)
+        recent: all().filter(r => r.lastBreakthroughAt && now - r.lastBreakthroughAt < 7 * 86_400_000)
           .sort((a, b) => (b.lastBreakthroughAt ?? 0) - (a.lastBreakthroughAt ?? 0)).slice(0, 10)
           .map(r => ({ name: r.name, realm: r.realm, at: r.lastBreakthroughAt })),
       })
@@ -157,6 +168,12 @@ export class RosterDO {
         case 'tong-tao': r = tongCreate(social, String(body.name ?? ''), me, meRow?.realm ?? 0); break
         case 'tong-vao': r = tongJoin(social, String(body.name ?? ''), me); break
         case 'tong-roi': r = tongLeave(social, me); break
+        case 'tong-duoi': {
+          r = tongKick(social, me, String(body.target ?? ''))
+          const kicked = find(String(body.target ?? ''))
+          if (r.s && kicked) notify = { to: kicked.name, text: `🏯 Đạo hữu đã bị Tông Chủ ${me} trục xuất khỏi tông.` }
+          break
+        }
         case 'tong-bo-nhiem': {
           const target = find(String(body.target ?? ''))
           r = tongAppoint(social, me, String(body.target ?? ''), body.role as Role, target?.realm ?? 0)
@@ -185,7 +202,7 @@ export class RosterDO {
           const target = find(String(body.to ?? ''))
           if (!target || lc(target.name) === lc(me)) { r = { error: 'Không tìm thấy người này.' }; break }
           if (!canCongrats(snapOf(target), now)) { r = { error: `${target.name} không đột phá trong 24 giờ qua.` }; break }
-          const once = congratsOnce(social, me, target.name, target.lastBreakthroughAt!)
+          const once = congratsOnce(social, me, target.name, target.lastBreakthroughAt!, now)
           if (once.error) { r = { error: once.error }; break }
           r = { s: once.s, text: `🎉 Đã chúc mừng ${target.name}.` }
           notify = { to: target.name, text: `🎉 ${me} chúc mừng đạo hữu vừa đột phá!` }
@@ -193,7 +210,7 @@ export class RosterDO {
         }
       }
       if (r.error) return Response.json({ error: r.error }, { status: 400 })
-      if (r.s && r.s !== social) { social = r.s; await saveSocial(social) }
+      if (r.s && r.s !== social) await saveSocial(r.s)
       return Response.json({ text: r.text, notify })
     }
     return new Response('not found', { status: 404 })

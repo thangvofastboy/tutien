@@ -53,17 +53,31 @@ export function dominant(counts: Partial<Record<Element, number>>): Element | nu
   if (total < MIN_ACTIONS) return null
   return (Object.entries(counts) as [Element, number][]).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0]
 }
-// Gọi sau mỗi tool: cộng một điểm, cứ 10 lần thì xem linh căn có đổi không và báo server.
-export async function trackTool($: any, tool: string, input: Record<string, unknown>): Promise<void> {
+// Gọi sau mỗi tool: cộng một điểm vào phần đếm trong bộ nhớ; cứ 10 điểm thì cộng dồn vào số đã lưu
+// (đọc mới, nên nhiều phiên Claude cùng lúc không ghi đè nhau), rồi xem linh căn có đổi không và báo server.
+// Chạy nối tiếp: tool song song (subagent) không chen nhau.
+// ponytail: tắt phiên giữa hai lần lưu thì mất tối đa 9 điểm đếm.
+let toolDelta: Partial<Record<Element, number>> = {}
+let toolSeen = 0
+let toolChain: Promise<void> = Promise.resolve()
+export function trackTool($: any, tool: string, input: Record<string, unknown>): Promise<void> {
   const el = classify(tool, input)
-  if (!el) return
-  const counts = ((await $.store.get('tutien.linhCanCounts')) as Partial<Record<Element, number>> | undefined) ?? {}
+  if (!el) return Promise.resolve()
+  const run = toolChain.then(() => countTool($, el))
+  toolChain = run.catch(() => undefined)
+  return run
+}
+async function countTool($: any, el: Element): Promise<void> {
+  toolDelta[el] = (toolDelta[el] ?? 0) + 1
+  if (++toolSeen % 10 !== 0) return
+  const stored = ((await $.store.get('tutien.linhCanCounts')) as Partial<Record<Element, number>> | undefined) ?? {}
+  const next: Partial<Record<Element, number>> = { ...stored }
+  for (const [k, n] of Object.entries(toolDelta) as [Element, number][]) next[k] = (next[k] ?? 0) + n
+  toolDelta = {}
   // Giữ tỉ lệ khi số lớn, để linh căn đổi được khi đạo hữu đổi việc.
-  const next: Partial<Record<Element, number>> = { ...counts, [el]: (counts[el] ?? 0) + 1 }
   const total = Object.values(next).reduce((a, b) => a + (b ?? 0), 0)
   if (total > 500) for (const k of Object.keys(next) as Element[]) next[k] = Math.floor((next[k] ?? 0) / 2)
   await $.store.set('tutien.linhCanCounts', next)
-  if (total % 10 !== 0) return
   const d = dominant(next)
   if (!d || d === (await $.store.get('tutien.linhCan'))) return
   const r = await callServer($, '/profile', { linhCan: d }).catch(() => null)

@@ -119,6 +119,7 @@ export function sumTranscript(text: string, day: string, seen: Set<string>): num
   }
   return total
 }
+const TRANSCRIPT_MAX = 64 * 1024 * 1024
 export async function reconcile($: any, now = Date.now()): Promise<void> {
   const day = vnDay(now - DAY)
   if ((await $.store.get('tutien.reconciled')) === day) return
@@ -136,7 +137,8 @@ export async function reconcile($: any, now = Date.now()): Promise<void> {
       for (const e of await $.fs.list(dir).catch(() => [])) {
         const p = `${dir}/${e.name}`
         if (e.kind === 'directory' && depth < 3) await walk(p, depth + 1)
-        else if (e.name.endsWith('.jsonl') && e.mtimeMs >= since) total += sumTranscript(String(await $.fs.read(p).catch(() => '')), day, seen)
+        // File transcript quá lớn (hàng trăm MB) thì bỏ qua thay vì đọc hết vào bộ nhớ lúc mở phiên.
+        else if (e.name.endsWith('.jsonl') && e.mtimeMs >= since && !(Number(e.size) > TRANSCRIPT_MAX)) total += sumTranscript(String(await $.fs.read(p).catch(() => '')), day, seen)
       }
     }
     await walk(root, 0)

@@ -54,6 +54,11 @@ export class PlayerDO {
       await save(recordFail(st, now))
       return Response.json({ ok: false }, { status: 401 })
     }
+    // Đang đổi tên/gộp: trạng thái đã được chép đi và DO này sắp bị xóa, khóa hay mã liên kết mới ghi ở đây sẽ mất.
+    const moving = st.renaming !== undefined && st.renaming > now
+    if (moving && (url.pathname === '/rotate' || url.pathname === '/link-code' || url.pathname === '/link')) {
+      return bad('Nhân vật đang đổi tên hoặc gộp, thử lại sau một phút.', 409)
+    }
     // Đổi khóa: khóa mới thay mọi khóa cũ, kể cả của các máy đã liên kết.
     if (url.pathname === '/rotate' && req.method === 'POST') {
       // Mã liên kết đang chờ cũng bị hủy: người giữ khóa cũ không đổi được mã lấy khóa mới.

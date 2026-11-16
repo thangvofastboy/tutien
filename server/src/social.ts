@@ -69,6 +69,18 @@ export function tongJoin(s: Social, name: string, player: string): R {
   return { s: { ...s, tongs: { ...s.tongs, [lc(name)]: { ...t, members: { ...t.members, [player]: 'de-tu' } } } }, text: `🏯 Đã gia nhập tông ${t.name}.` }
 }
 
+// Tông Chủ đuổi một thành viên (người treo máy làm tăng mục tiêu tuần và chiếm chỗ).
+export function tongKick(s: Social, owner: string, target: string): R {
+  const m = memberOf(s, owner)
+  if (!m || lc(m.tong.owner) !== lc(owner)) return { error: 'Chỉ Tông Chủ được trục xuất.' }
+  const key = Object.keys(m.tong.members).find(k => lc(k) === lc(target))
+  if (!key) return { error: `${target} không ở trong tông.` }
+  if (lc(key) === lc(owner)) return { error: 'Tông Chủ không tự trục xuất mình. Dùng /tutien tong roi.' }
+  const members = { ...m.tong.members }
+  delete members[key]
+  return { s: { ...s, tongs: { ...s.tongs, [lc(m.tong.name)]: { ...m.tong, members } } }, text: `Đã trục xuất ${key} khỏi tông ${m.tong.name}.` }
+}
+
 export function tongLeave(s: Social, player: string): R {
   const m = memberOf(s, player)
   if (!m) return { error: 'Đạo hữu chưa ở tông nào.' }
@@ -314,8 +326,10 @@ export function removeSocial(s: Social, name: string): Social {
 export const acceptRow = (gone: string[], name: string, revive: boolean) => revive || !gone.includes(name.toLowerCase())
 
 // Mỗi người chúc mừng một lần cho mỗi lần đột phá, để hộp thư không bị spam.
-export function congratsOnce(s: Social, from: string, to: string, breakthroughAt: number): { s?: Social; error?: string } {
+// Chỉ giữ các lượt chúc mừng còn trong cửa sổ chúc mừng: lần đột phá cũ hơn không chúc được nữa, bỏ để khối social không phình mãi.
+export function congratsOnce(s: Social, from: string, to: string, breakthroughAt: number, now = Date.now()): { s?: Social; error?: string } {
   const key = `${from.toLowerCase()}>${to.toLowerCase()}`
   if (s.congrats?.[key] === breakthroughAt) return { error: 'Đạo hữu đã chúc mừng lần đột phá này rồi.' }
-  return { s: { ...s, congrats: { ...(s.congrats ?? {}), [key]: breakthroughAt } } }
+  const kept = Object.fromEntries(Object.entries(s.congrats ?? {}).filter(([, at]) => now - at < CONGRATS_WINDOW))
+  return { s: { ...s, congrats: { ...kept, [key]: breakthroughAt } } }
 }

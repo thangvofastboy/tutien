@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { pushQueue, flushQueue, QUEUE_LIMIT, type Item } from './queue'
+import { pushQueue, flushQueue, QUEUE_LIMIT, FLUSH_MAX, type Item } from './queue'
 import { countTokens } from './api'
 
 const item = (id: string): Item => ({ turnId: id, tokens: 1000 })
@@ -48,4 +48,12 @@ test('#3 flush dừng ở lỗi mạng đầu tiên (hoặc 426) và giữ phầ
 test('#3 chưa có khóa thì không ghi lượt vào hàng đợi', () => {
   expect(canQueue(undefined)).toBe(false)
   expect(canQueue('k')).toBe(true)
+})
+
+test('mỗi lần gửi tối đa FLUSH_MAX lượt, phần còn lại giữ cho lần sau', async () => {
+  const q = Array.from({ length: FLUSH_MAX + 5 }, (_, i) => item(`t${i}`))
+  let calls = 0
+  const left = await flushQueue(q, async () => { calls++; return { ok: true, status: 200 } })
+  expect(calls).toBe(FLUSH_MAX)
+  expect(left.map(x => x.turnId)).toEqual(q.slice(FLUSH_MAX).map(x => x.turnId))
 })

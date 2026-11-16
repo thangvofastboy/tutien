@@ -59,3 +59,30 @@ test('tên trùng trả lại lượt (release) nên không tốn hạn mức', 
     await call(r, '/reg-limit', { ip: 'c', release: true })
   }
 })
+
+test('bảng nằm trong bộ nhớ: đọc /all, /ctx, /team không quét lại storage', async () => {
+  const { state } = fakeState({ 'row:alice': rowOf('Alice', 2) })
+  let lists = 0
+  const list = state.storage.list
+  state.storage.list = (o: any) => { lists++; return list(o) }
+  const r = new RosterDO(state)
+  await new Promise(r => setTimeout(r, 0))
+  const before = lists
+  await call(r, '/update', rowOf('Bob', 4))
+  for (const p of ['/all', '/ctx?name=Bob', '/team', '/social-info?name=Bob']) await call(r, p)
+  assert.equal(lists, before)
+  assert.deepEqual((await call(r, '/all')).rows.map((x: any) => x.name).sort(), ['Alice', 'Bob'])
+})
+
+test('tông: Tông Chủ trục xuất được thành viên, người khác thì không', async () => {
+  const { state } = fakeState()
+  const r = new RosterDO(state)
+  await call(r, '/update', rowOf('Chu', 12))
+  await call(r, '/update', rowOf('Ke', 1))
+  await call(r, '/social', { me: 'Chu', op: 'tong-tao', name: 'Kiem' })
+  await call(r, '/social', { me: 'Ke', op: 'tong-vao', name: 'Kiem' })
+  assert.ok((await call(r, '/social', { me: 'Ke', op: 'tong-duoi', target: 'Chu' })).error)
+  const out = await call(r, '/social', { me: 'Chu', op: 'tong-duoi', target: 'Ke' })
+  assert.equal(out.notify.to, 'Ke')
+  assert.equal((await call(r, '/social-info?name=Ke')).tong, null)
+})

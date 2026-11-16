@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { recordTurn } from './usage'
 import { callServer } from './api'
+import { trackTool } from './features'
 
 // $ giả: kho lưu trữ nhường lượt sau mỗi lần đọc/ghi, như store thật qua host,
 // để các lượt chạy song song đan xen đúng chỗ đọc-sửa-ghi hàng đợi.
@@ -48,4 +49,19 @@ test('callServer: server treo thì hết giờ trả 504 (không chặn chuỗi 
   const r = await callServer($ as any, '/me')
   expect(r).toMatchObject({ ok: false, status: 504 })
   expect(cancelled).toBe(1)
+})
+
+test('trackTool: 10 tool song song đếm đủ 10 và chỉ ghi store một lần', async () => {
+  const data = new Map<string, unknown>()
+  let writes = 0
+  const $ = {
+    store: {
+      get: async (k: string) => { await Promise.resolve(); return data.get(k) },
+      set: async (k: string, v: unknown) => { await Promise.resolve(); writes++; data.set(k, v) },
+    },
+  }
+  await Promise.all(Array.from({ length: 10 }, () => trackTool($, 'Edit', { file_path: '/x/a.ts' })))
+  const counts = data.get('tutien.linhCanCounts') as Record<string, number>
+  expect(Object.values(counts).reduce((a, b) => a + b, 0)).toBe(10)
+  expect(writes).toBe(1)
 })

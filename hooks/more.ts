@@ -22,7 +22,7 @@ export const MORE_HELP = [
   '🔍 /tutien tim <tên>                       xem một đạo hữu',
   '👥 /tutien team                            tiến độ team, sự kiện, lễ hội sắp tới',
   '📚 /tutien thu-vien                        thư viện pháp bảo, đan, huy hiệu',
-  '🏯 /tutien tong tao|vao <tên> · roi · xem  tông môn',
+  '🏯 /tutien tong tao|vao <tên> · roi · duoi <tên> · xem  tông môn',
   '🏅 /tutien tong bo-nhiem <tên> <chức vụ>   tông chủ bổ nhiệm',
   '🤝 /tutien ban|dao-lu <tên> · chap-nhan <tên> · huy',
   '🎉 /tutien chuc-mung <tên>                 chúc mừng người vừa đột phá',
@@ -112,6 +112,7 @@ export async function runMore($: any, sub: string, rest: string[], tail: string)
       if (op === 'tao') return say(await social($, { op: 'tong-tao', name }))
       if (op === 'vao') return say(await social($, { op: 'tong-vao', name }))
       if (op === 'roi') return say(await social($, { op: 'tong-roi' }))
+      if (op === 'duoi') return arg(1) ? say(await social($, { op: 'tong-duoi', target: arg(1) })) : 'Dùng: /tutien tong duoi <tên>'
       if (op === 'bo-nhiem') return say(await social($, { op: 'tong-bo-nhiem', target: arg(1), role: arg(2) }))
       const target = name || (await callServer<{ social: any }>($, '/status')).data?.social?.tong?.name
       if (!target) return 'Đạo hữu chưa ở tông nào. /tutien tong tao <tên> (cần bậc 10) hoặc /tutien tong vao <tên>.'

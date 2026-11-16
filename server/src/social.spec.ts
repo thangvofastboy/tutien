@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  emptySocial, tongCreate, tongJoin, tongLeave, tongAppoint, tongWeek, ctxFor, invite, accept, unpair, memberOf,
+  emptySocial, CONGRATS_WINDOW, tongCreate, tongJoin, tongLeave, tongAppoint, tongWeek, ctxFor, invite, accept, unpair, memberOf,
   canCongrats, seasonStep, titleOf, community, teamProgress, tongBoard, thienDaoEvent, renameSocial, type Snap,
 } from './social.ts'
 
@@ -83,4 +83,11 @@ test('chúc mừng: mỗi người một lần cho mỗi lần đột phá', () 
   assert.ok(a.s)
   assert.ok(congratsOnce(a.s!, 'X', 'Y', 123).error)
   assert.ok(congratsOnce(a.s!, 'x', 'y', 456).s)
+})
+
+test('chúc mừng: lượt cũ hơn cửa sổ chúc mừng bị dọn khi ghi', () => {
+  const now = Date.UTC(2026, 10, 16)
+  const s = { ...emptySocial(), congrats: { 'a>old': now - 2 * CONGRATS_WINDOW, 'a>new': now - 1000 } }
+  const r = congratsOnce(s, 'b', 'c', now - 10, now)
+  assert.deepEqual(Object.keys(r.s!.congrats!).sort(), ['a>new', 'b>c'])
 })

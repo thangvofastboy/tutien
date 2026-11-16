@@ -17,6 +17,22 @@ export { PlayerDO, RosterDO }
 // ponytail: isolate khác có thể thấy bản cũ tối đa 15 giây sau khi admin đăng ký tag mới.
 let releaseCache: { at: number; v: string[] } | null = null
 const RELEASE_CACHE_MS = 15_000
+// Bảng và số liệu team cho các GET công khai: nhớ 15 giây trong isolate, để dồn yêu cầu (hoặc bị spam)
+// không đè lên RosterDO, nơi /ctx và /update của mọi lượt chơi đang xếp hàng.
+// ponytail: bảng công khai chậm tối đa 15 giây; luận đạo cũng đọc bậc từ đây.
+const PUBLIC_CACHE_MS = 15_000
+// Row vừa gửi lên RosterDO theo tên: /me (pane hỏi định kỳ) không ghi lại row không đổi.
+// ponytail: nhớ theo isolate, tối đa 1000 tên rồi xóa hết; isolate mới thì ghi lại một lần.
+const pushedRows = new Map<string, string>()
+const publicCache = new Map<string, { at: number; v: Promise<any> }>()
+function cachedPublic<T>(key: string, now: number, load: () => Promise<T>): Promise<T> {
+  const hit = publicCache.get(key)
+  if (hit && now - hit.at < PUBLIC_CACHE_MS) return hit.v
+  const v = load()
+  publicCache.set(key, { at: now, v })
+  v.catch(() => { if (publicCache.get(key)?.v === v) publicCache.delete(key) })
+  return v
+}
 
 export interface Env {
   PLAYER: DurableObjectNamespace
@@ -64,7 +80,8 @@ export default {
       releaseCache = { at: now, v }
       return v
     }
-    const allRows = async () => (await rosterJson<{ rows: (Row & { title?: string })[] }>('/all')).rows
+    const allRows = () => cachedPublic('all', now, async () => (await rosterJson<{ rows: (Row & { title?: string })[] }>('/all')).rows)
+    const teamInfo = () => cachedPublic('team', now, () => rosterJson<any>('/team'))
     const post = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) })
     const isAdmin = () => !!env.ADMIN_TOKEN && req.headers.get('authorization') === `Bearer ${env.ADMIN_TOKEN}`
 
@@ -91,29 +108,28 @@ export default {
     if (url.pathname === '/leaderboard' && req.method === 'GET') {
       const boardName = url.searchParams.get('board') ?? 'tu-vi'
       const me = (url.searchParams.get('me') ?? '').toLowerCase()
-      const rows = await allRows()
       let pub: { rank: number; name: string; cls: string; realm: number; score: number }[]
       if (boardName === 'tong') {
-        const team = await rosterJson<{ tongs: { rank: number; name: string; members: number; power: number }[] }>('/team')
+        const team = (await teamInfo()) as { tongs: { rank: number; name: string; members: number; power: number }[] }
         pub = team.tongs.map(t => ({ rank: t.rank, name: t.name, cls: `${t.members} người`, realm: 0, score: t.power }))
       } else if (boardName === 'thap') {
-        const ranked = rows.filter(r => !r.flagged && (r.floor ?? 0) > 0)
+        const ranked = (await allRows()).filter(r => !r.flagged && (r.floor ?? 0) > 0)
           .sort((a, b) => (b.floor ?? 0) - (a.floor ?? 0) || (a.floorAt ?? 0) - (b.floorAt ?? 0))
         pub = ranked.map((r, i) => ({ rank: i + 1, name: r.name, cls: r.cls, realm: r.realm, score: (r.floor ?? 0) * 10 }))
       } else if (boardName === 'canh-gioi') {
         const major = Number(url.searchParams.get('major') ?? 0)
-        const ranked = sortBoards(rows).tuVi.filter(r => Math.floor((r.realm - 1) / 3) === major)
+        const ranked = sortBoards(await allRows()).tuVi.filter(r => Math.floor((r.realm - 1) / 3) === major)
         pub = ranked.map((r, i) => ({ rank: i + 1, name: r.name, cls: r.cls, realm: r.realm, score: r.pct }))
       } else {
         const board = BOARDS[boardName as keyof typeof BOARDS]
         if (!board) return json({ error: 'unknown board' }, 400)
-        pub = publicBoard(sortBoards(rows)[board], boardName, now)
+        pub = publicBoard(sortBoards(await allRows())[board], boardName, now)
       }
       const mine = me ? pub.find(r => r.name.toLowerCase() === me && r.rank > 10) : undefined
       return json({ rows: mine ? [...pub.slice(0, 10), mine] : pub.slice(0, 10) })
     }
     if (url.pathname === '/team' && req.method === 'GET') {
-      return json({ ...(await rosterJson<object>('/team')), holidays: upcomingHolidays(now, 45) })
+      return json({ ...(await teamInfo()), holidays: upcomingHolidays(now, 45) })
     }
     // Tìm bạn tu (spec 25): không lộ EXP hay token.
     if (url.pathname === '/find' && req.method === 'GET') {
@@ -134,7 +150,7 @@ export default {
       return roster.fetch(`https://do/tong?name=${encodeURIComponent(url.searchParams.get('name') ?? '')}`)
     }
     if (req.method === 'GET') {
-      const page = await renderWeb(url, { allRows, team: () => rosterJson('/team'), tong: (n: string) => rosterJson(`/tong?name=${encodeURIComponent(n)}`), assets: env.ASSETS, req })
+      const page = await renderWeb(url, { allRows, team: teamInfo, tong: (n: string) => rosterJson(`/tong?name=${encodeURIComponent(n)}`), assets: env.ASSETS, req })
       if (page) return page
     }
 
@@ -185,17 +201,33 @@ export default {
     if (verify.status !== 200) return json({ error: 'unauthorized' }, 401)
     const refreshRow = async (s: DurableObjectStub = stub, known?: Row) => {
       const r = known ?? ((await (await s.fetch('https://do/me')).json()) as { row?: Row }).row
-      if (r) await roster.fetch('https://do/update', post(r))
+      if (!r) return
+      const k = r.name.toLowerCase(), v = JSON.stringify(r)
+      if (pushedRows.get(k) === v) return
+      const res = await roster.fetch('https://do/update', post(r))
+      if (!res.ok) return
+      if (pushedRows.size >= 1000) pushedRows.clear()
+      pushedRows.set(k, v)
+    }
+    // Xóa DO cũ sau khi đã chép sang nhân vật khác: thử lại vài lần, vì DO cũ còn sót thì mở khóa sau 60 s
+    // và gộp/đổi tên lại được lần nữa (nhân đôi EXP, linh thạch).
+    const wipe = async (s: DurableObjectStub) => {
+      for (let i = 0; i < 3; i++) if ((await s.fetch('https://do/wipe', post({})).catch(() => null))?.ok) return true
+      console.error(`wipe failed: ${name}`)
+      return false
     }
 
     if (url.pathname === '/rotate-key') {
       const fresh = crypto.randomUUID()
-      await stub.fetch('https://do/rotate', post({ keyHash: await sha256(fresh) }))
+      // DO từ chối (đang đổi tên/gộp) thì không đưa khóa chưa được lưu cho khách.
+      const res = await stub.fetch('https://do/rotate', post({ keyHash: await sha256(fresh) }))
+      if (!res.ok) return new Response(res.body, { status: res.status, headers: { 'content-type': 'application/json' } })
       return json({ key: fresh })
     }
     if (url.pathname === '/link-code') {
       const code = linkCode()
-      await stub.fetch('https://do/link-code', post({ codeHash: await sha256(code) }))
+      const res = await stub.fetch('https://do/link-code', post({ codeHash: await sha256(code) }))
+      if (!res.ok) return new Response(res.body, { status: res.status, headers: { 'content-type': 'application/json' } })
       return json({ code, minutes: LINK_MS / 60_000 })
     }
 
@@ -258,7 +290,8 @@ export default {
         await stub.fetch('https://do/rename-unlock', post({}))
         return new Response(res.body, { status: res.status, headers: { 'content-type': 'application/json' } })
       }
-      await stub.fetch('https://do/wipe', post({}))
+      await wipe(stub)
+      pushedRows.delete(name.toLowerCase())
       await roster.fetch('https://do/remove', post({ name }))
       await refreshRow(target)
       return json({ merged: name, into, ...((await res.json()) as object) })
@@ -279,7 +312,8 @@ export default {
         await stub.fetch('https://do/rename-unlock', post({}))
         return json({ error: imp.status === 409 ? `Tên "${to}" đã có người dùng.` : 'Không đổi tên được, thử lại sau.' }, imp.status)
       }
-      await stub.fetch('https://do/wipe', post({}))
+      await wipe(stub)
+      pushedRows.delete(name.toLowerCase())
       await roster.fetch('https://do/rename', post({ from: name, to }))
       await refreshRow(fresh)
       return json({ name: to })
