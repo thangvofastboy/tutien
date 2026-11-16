@@ -72,7 +72,7 @@ export function congPhapOf(st: { player: Player; congPhap?: CongPhap }): CongPha
   let points = cp.points
   const learned: Record<string, number> = {}
   for (const [id, n] of Object.entries(cp.learned)) {
-    if (skills[id]) learned[id] = Math.min(n, skills[id].max)
+    if (Object.hasOwn(skills, id)) learned[id] = Math.min(n, skills[id].max)
     else points += n
   }
   return { points, learned }
@@ -114,7 +114,7 @@ export function treeView(st: { player: Player; congPhap?: CongPhap }) {
 export function learn(st: { player: Player; congPhap?: CongPhap }, id: string): { congPhap?: CongPhap; error?: string; text?: string } {
   const cp = congPhapOf(st)
   const t = treeOf(st.player.cls)
-  const s = t.skills[id]
+  const s = Object.hasOwn(t.skills, id) ? t.skills[id] : undefined
   if (!s) return { error: `${t.school} không có công pháp "${id}". Xem /tutien cong-phap.` }
   const have = cp.learned[id] ?? 0
   if (have >= s.max) return { error: `${s.icon} ${s.name} đã đại thành. Học nữa là tẩu hỏa nhập ma đó!` }

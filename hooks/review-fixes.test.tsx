@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { recordTurn } from './usage'
+import { callServer } from './api'
 
 // $ giả: kho lưu trữ nhường lượt sau mỗi lần đọc/ghi, như store thật qua host,
 // để các lượt chạy song song đan xen đúng chỗ đọc-sửa-ghi hàng đợi.
@@ -20,6 +21,7 @@ function fake$() {
       },
     },
     ui: { toast: () => undefined, log: () => undefined, status: () => undefined },
+    clock: { after: () => ({ cancel: () => undefined }) },
   }
   return { $, sent, data }
 }
@@ -33,4 +35,17 @@ test('ba lượt kết thúc cùng lúc (subagent song song): cả ba được g
   ])
   expect([...new Set(sent)].sort()).toEqual(['turn-a', 'turn-b', 'turn-c'])
   expect(data.get('tutien.queue')).toEqual([])
+})
+
+test('callServer: server treo thì hết giờ trả 504 (không chặn chuỗi gửi EXP)', async () => {
+  const data = new Map<string, unknown>([['tutien.name', 'ThangVo'], ['tutien.key', 'k'.repeat(40)]])
+  let cancelled = 0
+  const $ = {
+    store: { get: async (k: string) => data.get(k) },
+    http: { fetch: () => new Promise<never>(() => undefined) },
+    clock: { after: (_ms: number, fn: () => void) => { void Promise.resolve().then(fn); return { cancel: () => { cancelled++ } } } },
+  }
+  const r = await callServer($ as any, '/me')
+  expect(r).toMatchObject({ ok: false, status: 504 })
+  expect(cancelled).toBe(1)
 })

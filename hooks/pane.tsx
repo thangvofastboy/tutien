@@ -1,6 +1,6 @@
 import { atom, read, update } from 'claude-code'
 import { callServer, SERVER } from './api'
-import { statusText, percentExp, stateIcon, toneOf, timeLeft } from './display'
+import { statusText, percentExp, stateIcon, toneOf, timeLeft, percentTrib } from './display'
 import { REALM_NAMES, type Player } from './rules'
 import { tribEffect, overlayFrame, effectActive } from './effects'
 import { paneLine } from './persona'
@@ -53,7 +53,11 @@ const shimmer = atom({ plugin: 'tutien', key: 'shimmer' } as const, 0)
 let shimmerClock: { cancel: () => void } | null = null
 export function startLineClock($: any): void {
   lineClock?.cancel()
-  lineClock = $.clock.every(LINE_MS, () => void update($, lineTick, (n: number) => n + 1))
+  // Bám mốc LINE_MS của đồng hồ thật: paneLine chọn câu theo floor(Date.now()/LINE_MS).
+  const bump = () => void update($, lineTick, (n: number) => n + 1)
+  let stopped = false
+  const first = $.clock.after(LINE_MS - (Date.now() % LINE_MS), () => { if (stopped) return; bump(); lineClock = $.clock.every(LINE_MS, bump) })
+  lineClock = { cancel: () => { stopped = true; first?.cancel?.() } }
   shimmerClock?.cancel()
   shimmerClock = $.clock.every(SHIMMER_MS, () => {
     void (async () => { if ((await setting($, 'tutien.effects')) !== 'off') await update($, shimmer, (n: number) => n + 1) })()
@@ -81,7 +85,6 @@ const artCache = new Map<string, string | null>()
 async function cachedRead(file: string, load: () => Promise<string | null>): Promise<string | null> {
   if (artCache.has(file)) return artCache.get(file)!
   const v = await load()
-  if (v === null) return null
   if (artCache.size >= 32) artCache.clear()
   artCache.set(file, v)
   return v
@@ -107,9 +110,10 @@ export async function showEffect($: any, kind: string, ms: number): Promise<void
 // Nhận sự kiện từ server (/usage) và bật hiệu ứng tương ứng.
 export async function applyEvents($: any, events: string[]): Promise<void> {
   const chat = (await setting($, 'tutien.chatlines')) !== 'off'
+  // Nhiều sự kiện một lượt: chỉ hiệu ứng cuối còn thấy được, nên chỉ bật nó một lần.
+  const fx = events.map(tribEffect).filter(Boolean).pop()
+  if (fx) await showEffect($, fx.kind, fx.ms)
   for (const ev of events) {
-    const fx = tribEffect(ev)
-    if (fx) await showEffect($, fx.kind, fx.ms)
     const lines = eventLines(ev, Date.now())
     if (chat && lines.length) $.ui.log(lines.join('\n'))
   }
@@ -143,7 +147,13 @@ export const ART_SIZES: Record<string, number> = { nho: 96, vua: 192, lon: 288, 
 // Svg dùng base64 lưu trong store; Raster dùng ô màu do scripts/avatar.py dựng; chế độ Image đọc lại file gốc nếu còn.
 export const AVATAR_MAX_B64 = 1_400_000
 export const isPngBase64 = (b64: unknown): b64 is string => typeof b64 === 'string' && b64.startsWith('iVBORw0KGgo') && b64.length <= AVATAR_MAX_B64
-async function avatarOf($: any): Promise<{ b64: string; file: string | null; cells: string | null } | null> {
+type Avatar = { b64: string; file: string | null; cells: string | null } | null
+let avatarMemo: Promise<Avatar> | null = null
+function avatarOf($: any): Promise<Avatar> {
+  avatarMemo ??= loadAvatar($).catch(e => { avatarMemo = null; throw e })
+  return avatarMemo
+}
+async function loadAvatar($: any): Promise<Avatar> {
   const [b64, file, cells] = await Promise.all([$.store.get('tutien.avatar'), $.store.get('tutien.avatarFile'), $.store.get('tutien.avatarCells')])
   return isPngBase64(b64) ? { b64, file: typeof file === 'string' ? file : null, cells: typeof cells === 'string' ? cells : null } : null
 }
@@ -152,6 +162,7 @@ export async function setAvatar($: any, b64: string | null, file: string | null,
   await $.store.set('tutien.avatarFile', file)
   await $.store.set('tutien.avatarCells', cells)
   artCache.clear() // bỏ kết quả stat cũ của file ảnh
+  avatarMemo = null
   await update($, settingsTick, (n: number) => n + 1)
   if (webRunning()) await writeWebState($, await read($, me), await read($, board))
 }
@@ -185,12 +196,9 @@ export async function renderBand($: any, e: any, next: any) {
   try { below = await next(e) } catch { /* không có gì bên dưới (môi trường test) */ }
   if ((await setting($, 'tutien.band')) === 'off') return below
   const { Box, Text } = $.ui.resolve(e)
-  const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
-  const p = await read($, me)
-  const inf = await read($, info)
-  const fx = await read($, effect)
+  const [nameRaw, p, inf, fx, { th }] = await Promise.all([$.store.get('tutien.name'), read($, me), read($, info), read($, effect), look($)])
+  const name = (nameRaw as string | undefined) ?? ''
   const now = Date.now()
-  const { th } = await look($)
   const tone = toneOf(p, now)
   const seg = (key: string, text: string, color?: string, bold?: boolean) => <Text key={key} color={color} bold={bold}>{text}</Text>
   const dot = (key: string) => <Text key={key} dimColor>│</Text>
@@ -202,7 +210,7 @@ export async function renderBand($: any, e: any, next: any) {
     parts.push(seg('who', `${stateIcon(p)} ${name || 'Tu tiên'} · ${p.cls}`, th.quote))
     parts.push(dot('d1'), seg('realm', `✦ ${REALM_NAMES[p.realm - 1]}`, rc, true))
     if (p.trib) {
-      parts.push(dot('d2'), seg('trib', `⚡ Thiên phạt ${Math.floor((p.trib.earned / p.trib.required) * 100)}% · còn ${timeLeft(now, p.trib.deadline)}`, 'warning', true))
+      parts.push(dot('d2'), seg('trib', `⚡ Thiên phạt ${percentTrib(p, now)}% · còn ${timeLeft(now, p.trib.deadline)}`, 'warning', true))
     } else {
       const pct = percentExp(p)
       const m = meter(pct)
@@ -213,8 +221,9 @@ export async function renderBand($: any, e: any, next: any) {
   }
   const banner = effectActive(fx, now) ? EVENT_BANNERS[fx!.kind] : undefined
   return (
-    <Box flexDirection="column" width={e.props.bodyColumns}>
-      <Box flexDirection="column" borderStyle="round" borderColor={p ? realmColor(p.realm) : tone} paddingX={1}>
+    // Box chứa `below` (engine node) không được có `width`: Claude Code 2.1.325+ từ chối cả cây AbovePrompt.
+    <Box flexDirection="column">
+      <Box flexDirection="column" width={e.props.bodyColumns} borderStyle="round" borderColor={p ? realmColor(p.realm) : tone} paddingX={1}>
         <Box flexDirection="row" flexWrap="wrap" gap={1}>
           <Box flexDirection="row">{gradientRuns('◆ Tu Tiên').map((r, i) => <Text key={`t${i}`} bold color={r.color}>{r.ch}</Text>)}</Box>
           {parts}
@@ -243,13 +252,17 @@ export async function seedPlayer($: any): Promise<void> {
   if (p && !(await read($, me))) await update($, me, () => p)
 }
 
+// Nhiều lần refresh chồng nhau (sau mỗi lượt, sau lệnh): chỉ lần gọi mới nhất được ghi kết quả.
+let refreshSeq = 0
 export async function refreshPane($: any): Promise<void> {
+  const seq = ++refreshSeq
   const name = ((await $.store.get('tutien.name')) as string | undefined) ?? ''
   // Hai yêu cầu độc lập: gửi song song.
   const [res, top] = await Promise.all([
     callServer<{ player: Player; status?: any; social?: any }>($, '/me').catch(() => undefined),
     $.http.fetch(`${SERVER}/leaderboard?board=tu-vi&me=${encodeURIComponent(name)}`, { method: 'GET' }).catch(() => null),
   ])
+  if (seq !== refreshSeq) return
   if (res?.ok && res.data?.status) {
     const s = res.data.status
     await update($, info, () => ({
@@ -303,14 +316,16 @@ const QUICK_GROUPS: { label: string; color: string; args: string[] }[] = [
   { label: '📜 Bảo vật', color: '#d2a8ff', args: ['cong-phap', 'the'] },
   { label: '🛠️ Khác', color: '#79c0ff', args: ['setting'] },
 ]
+let quickSeq = 0
 function runQuick($: any, arg: string, label?: string) {
+  const seq = ++quickSeq
   void (async () => {
     const title = label ?? QUICK.find(q => q.arg === arg)?.label ?? arg
     const opens = OPEN_COMMANDS.includes(arg)
     if (!opens) await update($, quickOut, () => ({ title, text: '⏳ Đang tải…' }))
     // Gọi thẳng hàm xử lý /tutien, không đi vòng qua $.command.run.
     const r = await runTutien($, arg).catch(() => undefined)
-    if (opens) return // mở pane khác
+    if (opens || seq !== quickSeq) return // mở pane khác, hoặc đã bấm nút khác sau
     const text = String(r?.text ?? '').trim() || 'Không có dữ liệu.'
     // Lệnh đã tự hiện thẻ (kèm ảnh) thì giữ nguyên.
     await update($, quickOut, (cur: any) => ((cur?.card || cur?.actions) && cur.text === text ? cur : { title, text }))
@@ -392,7 +407,7 @@ export async function renderPane($: any, e: any) {
   // Terminal chỉ có cỡ thường và 'nho' (một nửa mỗi chiều); các cỡ lớn hơn chỉ dành cho Svg.
   const half = artSize === 'nho'
   const raster = (cells: string) => half
-    ? <Raster key="realm" columns={CELL_COLS / 2} rows={CELL_ROWS / 2} cells={shrinkCells(cells, CELL_COLS, CELL_ROWS)} />
+    ? <Raster key="realm" columns={CELL_COLS / 2} rows={CELL_ROWS / 2} cells={shrinkMemo(cells)} />
     : <Raster key="realm" columns={CELL_COLS} rows={CELL_ROWS} cells={cells} />
   let art: any = <Text>{alt}</Text>
   if (mode !== 'text' && e.surface !== 'terminal' && Svg) {
@@ -625,7 +640,10 @@ export async function registerPlayer($: any, r: { name: string; cls: string; gen
   if (res.status === 409) return { ok: false, text: `Tên "${r.name}" đã có người dùng.` }
   if (res.status === 426) return { ok: false, text: 'Bản mod đã cũ. Chạy /tutien update trước.' }
   if (!res.ok) return { ok: false, text: `Đăng ký thất bại (${res.status}).` }
-  await $.store.set('tutien.key', JSON.parse(res.text).key)
+  let key: unknown
+  try { key = JSON.parse(res.text).key } catch { /* thân phản hồi hỏng */ }
+  if (typeof key !== 'string' || !key) return { ok: false, text: 'Phản hồi server lỗi.' }
+  await $.store.set('tutien.key', key)
   await $.store.set('tutien.name', r.name)
   await refreshPane($)
   return { ok: true, text: `Đã ghi danh ${r.name}: ${r.cls}, ${r.gender}. Khóa đã lưu trên máy này.` }
@@ -644,6 +662,8 @@ export async function submitWizardName($: any, name: string): Promise<string> {
 // /tutien start: mở pane, đặt lại các bước và chạy chữ lời mở đầu.
 export const START_ID = 'tu-tien-start'
 
+let typeTimer: { cancel: () => void } | null = null
+let registering = false
 export async function startWizard($: any): Promise<void> {
   await update($, wizard, () => initWizard())
   await update($, wizardError, () => null)
@@ -654,19 +674,20 @@ export async function startWizard($: any): Promise<void> {
     await update($, typed, () => PROLOGUE.length)
     return
   }
+  typeTimer?.cancel()
   const timer = $.clock.every(30, () => {
-    void update($, typed, (n: number) => {
-      if (n >= PROLOGUE.length) {
-        timer.cancel()
-        return n
-      }
-      return Math.min(PROLOGUE.length, n + 3)
+    void update($, typed, (n: number) => Math.min(PROLOGUE.length, n + 3)).then(() => read($, typed)).then((n: number) => {
+      if (n >= PROLOGUE.length) { timer.cancel(); if (typeTimer === timer) typeTimer = null }
     })
   })
+  typeTimer = timer
 }
 
 // Thu nhỏ cells Raster đi một nửa mỗi chiều (lấy ô chẵn): ảnh thu nhỏ cho bước chọn lớp/giới trên terminal.
 // Mỗi ô là 12 byte (3 u32), chép nguyên byte nên không phụ thuộc thứ tự byte của máy.
+// Pane vẽ lại mỗi 250 ms khi có hiệu ứng: giữ kết quả thu nhỏ gần nhất.
+let lastShrink: { in: string; out: string } | null = null
+const shrinkMemo = (b64: string) => (lastShrink?.in === b64 ? lastShrink.out : (lastShrink = { in: b64, out: shrinkCells(b64, CELL_COLS, CELL_ROWS) }).out)
 export function shrinkCells(b64: string, cols: number, rows: number): string {
   const src = atob(b64)
   const w = cols >> 1, h = rows >> 1
@@ -815,14 +836,17 @@ export async function renderStart($: any, e: any) {
   }
   // confirm
   function confirm() {
+    if (registering) return
+    registering = true
     void (async () => {
       const cur = await read($, wizard)
+      if (cur.done) return
       await $.store.set('tutien.persona', cur.persona ?? 'none')
       await $.store.set('tutien.display', cur.display ?? 'raster')
       const r = await registerPlayer($, { name: cur.name!, cls: cur.cls!, gender: cur.gender! })
       await update($, wizardError, () => (r.ok ? null : r.text))
       if (r.ok) await update($, wizard, (x: Wizard) => ({ ...x, step: STEPS.length - 1, done: true }))
-    })()
+    })().catch(() => update($, wizardError, () => 'Ghi danh lỗi, thử lại.')).finally(() => { registering = false })
   }
   const finished = w.done === true
   return (

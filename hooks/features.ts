@@ -221,7 +221,7 @@ export async function runFeatures($: any, sub: string, rest: string[], tail: str
       const r = await callServer<{ text: string; win: boolean }>($, '/luan-dao', { target: tail })
       if (!r.ok || !r.data) return { text: fail(r) }
       const me = await status()
-      const foe = await $.http.fetch(`${SERVER}/find?name=${encodeURIComponent(tail)}`, { method: 'GET' }).then((x: any) => (x.ok ? JSON.parse(x.text) : null), () => null)
+      const foe = await $.http.fetch(`${SERVER}/find?name=${encodeURIComponent(tail)}`, { method: 'GET' }).then((x: any) => (x.ok ? JSON.parse(x.text) : null)).catch(() => null)
       const name = ((await $.store.get('tutien.name')) as string) ?? ''
       return {
         text: r.data.text, title: '⚔️ Luận Đạo',

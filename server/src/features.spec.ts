@@ -217,3 +217,13 @@ test('chuỗi ngày: sáng nay chưa tu lượt nào thì vẫn giữ chuỗi t�
   delete history[vnDay(NOW)]
   assert.equal(streakDays({ ...fresh(), history }, NOW), 0)
 })
+
+test('khóa của Object.prototype không phải công pháp hay linh căn (không học miễn phí, không 500)', async () => {
+  const st = { ...fresh(), player: { ...fresh().player, realm: 3 } }
+  for (const id of ['constructor', 'toString', '__proto__']) assert.ok(learn(st, id).error, id)
+  const cp = congPhapOf({ ...st, congPhap: { points: 0, learned: { constructor: 1 } } })
+  assert.deepEqual(cp, { points: 1, learned: {} }) // điểm lỡ ghi vào khóa lạ được hoàn lại
+  const { isLinhCan } = await import('./features.ts')
+  assert.equal(isLinhCan('constructor'), false)
+  assert.equal(isLinhCan('kim'), true)
+})

@@ -29,7 +29,7 @@ export const LINH_CAN: Record<LinhCan, { name: string; icon: string; desc: strin
   tho: { name: 'Thổ Linh Căn', icon: '⛰️', desc: 'Test vững như núi: −0,05% tỷ lệ tử vong', bonus: { death: 0.0005 } },
   moc: { name: 'Mộc Linh Căn', icon: '🌿', desc: 'Tài liệu xanh tươi: linh thạch kỳ ngộ ×1,5', bonus: {} },
 }
-export const isLinhCan = (v: unknown): v is LinhCan => typeof v === 'string' && v in LINH_CAN
+export const isLinhCan = (v: unknown): v is LinhCan => typeof v === 'string' && Object.hasOwn(LINH_CAN, v)
 // Ngũ hành tương khắc: kim khắc mộc, mộc khắc thổ, thổ khắc thủy, thủy khắc hỏa, hỏa khắc kim.
 export const KHAC: Record<LinhCan, LinhCan> = { kim: 'moc', moc: 'tho', tho: 'thuy', thuy: 'hoa', hoa: 'kim' }
 

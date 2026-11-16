@@ -28,7 +28,9 @@ export interface Env {
 
 const CLASSES: readonly string[] = C
 const GENDERS: readonly string[] = G
-const NAME = /^[\p{L}\p{N}_-]{1,24}$/u
+const NAME_RE = /^[\p{L}\p{N}_-]{1,24}$/u
+// Tên trùng khóa của Object.prototype (__proto__, constructor…) phá các map quan hệ và bảng xếp hạng.
+const NAME = { test: (s: string) => NAME_RE.test(s) && !(s.toLowerCase() in Object.prototype) }
 const BOARDS = { 'tu-vi': 'tuVi', chamchi: 'chamChi', tuan: 'tuan', phoenix: 'phoenix', phapbao: 'phapBao' } as const
 // Only these player routes are reachable from outside; DO-internal routes (/init, /verify, /gift, /export…) are not.
 const PLAYER_ROUTES: Record<string, 'GET' | 'POST'> = {

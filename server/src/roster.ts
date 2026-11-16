@@ -172,7 +172,7 @@ export class RosterDO {
           break
         }
         case 'accept': if (body.kind !== 'ban' && body.kind !== 'dao-lu') break; r = accept(social, me, String(body.from ?? ''), body.kind); if (r.s) notify = { to: String(body.from), text: `💞 ${me} đã chấp nhận lời mời.` }; break
-        case 'unpair': r = unpair(social, me, body.kind); break
+        case 'unpair': if (body.kind !== 'ban' && body.kind !== 'dao-lu') break; r = unpair(social, me, body.kind); break
         case 'bai-su': {
           const target = find(String(body.to ?? ''))
           r = baiSu(social, meRow && snapOf(meRow), target && snapOf(target), now)

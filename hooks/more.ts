@@ -10,7 +10,8 @@ const say = (r: Res) => (r.ok ? (r.data?.text ?? 'Xong.') : fail(r))
 
 async function publicGet($: any, path: string): Promise<any | null> {
   const res = await $.http.fetch(`${SERVER}${path}`, { method: 'GET' }).catch(() => null)
-  return res?.ok ? JSON.parse(res.text) : null
+  if (!res?.ok) return null
+  try { return JSON.parse(res.text) } catch { return null }
 }
 function social($: any, body: object) {
   return callServer($, '/social', body)
@@ -167,8 +168,11 @@ export async function runMore($: any, sub: string, rest: string[], tail: string)
       }).catch(() => null)
       if (!res) return 'Không kết nối được server.'
       if (res.status === 426) return 'Server chưa nhận phiên bản mod này. Chạy /tutien update.'
-      const data = JSON.parse(res.text || '{}')
+      let data: any = {}
+      try { data = JSON.parse(res.text || '{}') } catch { /* thân phản hồi hỏng */ }
       if (!res.ok) return data.error ?? `Liên kết thất bại (${res.status}).`
+      // Không có khóa thì không được gộp hay ghi đè khóa đang dùng.
+      if (typeof data.key !== 'string' || !data.key) return 'Phản hồi server lỗi, chưa liên kết.'
       // Máy này đã có nhân vật riêng (khác nhân vật liên kết): gộp hết vào nhân vật chính rồi xóa nhân vật cũ.
       let merged = ''
       if (oldName && oldKey && oldName.toLowerCase() !== name.toLowerCase()) {
@@ -183,7 +187,8 @@ export async function runMore($: any, sub: string, rest: string[], tail: string)
           body: JSON.stringify({ into: name, intoKey: data.key }),
         }).catch(() => null)
         if (m?.ok) {
-          const out = JSON.parse(m.text || '{}')
+          let out: any = {}
+          try { out = JSON.parse(m.text || '{}') } catch { /* chỉ để hiện số EXP */ }
           merged = `\n➕ Đã gộp nhân vật cũ ${oldName} vào ${name} (+${out.gained} EXP, cộng cả linh thạch, pháp bảo, huy hiệu); nhân vật cũ đã xóa.`
         } else if (m) {
           // Server trả lỗi: chưa gộp, giữ khóa nhân vật cũ (không thì mất hẳn quyền vào nhân vật cũ).

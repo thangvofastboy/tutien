@@ -87,7 +87,7 @@ export function tongLeave(s: Social, player: string): R {
 export function tongAppoint(s: Social, owner: string, target: string, role: Role, targetRealm: number): R {
   const m = memberOf(s, owner)
   if (!m || lc(m.tong.owner) !== lc(owner)) return { error: 'Chỉ Tông Chủ được bổ nhiệm.' }
-  if (!ROLES[role] || role === 'tong-chu') return { error: 'Chức vụ: pho-tong-chu, truong-lao, ho-phap, chan-truyen, de-tu.' }
+  if (!Object.hasOwn(ROLES, role) || role === 'tong-chu') return { error: 'Chức vụ: pho-tong-chu, truong-lao, ho-phap, chan-truyen, de-tu.' }
   const key = Object.keys(m.tong.members).find(k => lc(k) === lc(target))
   if (!key) return { error: `${target} không ở trong tông.` }
   if (lc(key) === lc(owner)) return { error: 'Tông Chủ giữ nguyên chức vụ.' }

@@ -1,6 +1,6 @@
 // hooks/session.ts — việc lúc mở phiên và giữa các lượt: tài khoản Claude, hộp thư, lời nhắc, tóm tắt khi quay lại,
 // đối chiếu transcript (spec 20.1, 21.4, 25), và persona cho Claude.
-import { callServer, accountFromConfig } from './api'
+import { callServer, accountFromConfig, SERVER } from './api'
 import { personaById } from './persona'
 import { REALM_NAMES } from './rules'
 import { timeLeft } from './display'
@@ -41,10 +41,13 @@ export async function sessionNotes($: any, now = Date.now()): Promise<void> {
   if (!r.ok || !r.data) return
   const { player, status } = r.data
   const lines: string[] = []
+  // /team đọc tối đa một lần mỗi lần gọi (dùng cho cả lời chào trở lại và thử thách cộng đồng).
+  let teamP: Promise<any> | undefined
+  const teamInfo = () => (teamP ??= $.http.fetch(`${SERVER}/team`, { method: 'GET' }).then((x: any) => (x.ok ? JSON.parse(x.text) : null)).catch(() => null))
 
   const lastSeen = (await $.store.get('tutien.lastSeen')) as number | undefined
   if (lastSeen && now - lastSeen >= 3 * DAY) {
-    const team = await $.http.fetch(`https://tutien.thang-vo.workers.dev/team`, { method: 'GET' }).then((x: any) => (x.ok ? JSON.parse(x.text) : null)).catch(() => null)
+    const team = await teamInfo()
     lines.push(`🏡 Chào mừng trở lại sau ${Math.floor((now - lastSeen) / DAY)} ngày. Đạo hữu đang ở ${REALM_NAMES[player.realm - 1]}.`)
     if (team?.recent?.length) lines.push(`   ✨ Vừa đột phá: ${team.recent.slice(0, 5).map((x: any) => x.name).join(', ')}`)
     if (status.bicanh) lines.push(`   🌀 ${status.bicanh}`)
@@ -55,7 +58,7 @@ export async function sessionNotes($: any, now = Date.now()): Promise<void> {
   // Thử thách cộng đồng (spec 20.2): team đạt mục tiêu tháng trước thì tháng này có bộ thoại đặc biệt.
   const month = today0(now)
   if ((await $.store.get('tutien.communityShown')) !== month) {
-    const t = await $.http.fetch(`https://tutien.thang-vo.workers.dev/team`, { method: 'GET' }).then((x: any) => (x.ok ? JSON.parse(x.text) : null)).catch(() => null)
+    const t = await teamInfo()
     if (t?.community?.rewardActive) {
       lines.push(`🎆 Cả team đã đạt Thử Thách Cộng Đồng tháng trước! ${COMMUNITY_LINES[Math.floor(now / DAY) % COMMUNITY_LINES.length]}`)
       await $.store.set('tutien.communityShown', month)
@@ -106,9 +109,12 @@ export function sumTranscript(text: string, day: string, seen: Set<string>): num
     try { o = JSON.parse(line) } catch { continue }
     const u = o?.message?.usage
     if (!u || typeof o.timestamp !== 'string' || vnDay(Date.parse(o.timestamp)) !== day) continue
-    const id = `${o.message?.id ?? ''}:${o.requestId ?? ''}`
-    if (seen.has(id)) continue
-    seen.add(id)
+    // Dòng không có id nào thì không gộp trùng được: đếm luôn (khóa ":" sẽ bỏ sót các dòng sau).
+    if (o.message?.id || o.requestId) {
+      const id = `${o.message?.id ?? ''}:${o.requestId ?? ''}`
+      if (seen.has(id)) continue
+      seen.add(id)
+    }
     total += (Number(u.input_tokens) || 0) + (Number(u.output_tokens) || 0) + (Number(u.cache_creation_input_tokens) || 0)
   }
   return total
