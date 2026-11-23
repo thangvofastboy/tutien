@@ -15,6 +15,7 @@ import { webRunning, writeWebState } from './web'
 import { greetingLines, eventLines } from './chat'
 import { lineColor } from './features'
 import { fxSvg, kyNgoScene, KY_NGO_ASCII, type FxKind } from './art'
+import { animatedSprite, rasterFrame } from './anim'
 import { runTutien } from './register'
 
 const PANE = 'tu-tien'
@@ -132,10 +133,11 @@ export async function logGreeting($: any): Promise<void> {
 // Ảnh nhân vật cho bề mặt không có Raster: PNG nhúng trong SVG, giữ nét pixel khi phóng to.
 // smooth: phóng to có làm mịn (nội suy) thay vì giữ nét pixel; size: cạnh ảnh theo px.
 // Pane vẽ lại mỗi 250 ms khi có hiệu ứng: giữ lại SVG vừa dựng (ảnh tự chọn có thể tới 1,4 MB base64).
-let lastSprite: { b64: string; smooth: boolean; size: number; svg: string } | null = null
-function spriteOf(b64: string, smooth: boolean, size: number): string {
-  if (lastSprite && lastSprite.b64 === b64 && lastSprite.smooth === smooth && lastSprite.size === size) return lastSprite.svg
-  lastSprite = { b64, smooth, size, svg: svgSprite(b64, smooth, size) }
+// aura: màu hào quang khi ảnh chuyển động; null là ảnh đứng yên (Hiệu ứng = off).
+let lastSprite: { b64: string; smooth: boolean; size: number; aura: string | null; svg: string } | null = null
+function spriteOf(b64: string, smooth: boolean, size: number, aura: string | null): string {
+  if (lastSprite && lastSprite.b64 === b64 && lastSprite.smooth === smooth && lastSprite.size === size && lastSprite.aura === aura) return lastSprite.svg
+  lastSprite = { b64, smooth, size, aura, svg: aura ? animatedSprite(b64, smooth, size, aura) : svgSprite(b64, smooth, size) }
   return lastSprite.svg
 }
 export const svgSprite = (b64: string, smooth = false, size = 192) =>
@@ -389,10 +391,10 @@ export async function renderPane($: any, e: any) {
     : null
   const active = effectActive(fx, Date.now()) ? fx!.kind : null
   // Đọc mọi cài đặt, ảnh tự chọn, tên và cờ ẩn/hiện một lượt, song song.
-  const [persona, personaLines, display, panelbg, compactSetting, { th, sz }, custom, artSize, smooth, nameRaw, ...visRaw] = await Promise.all([
+  const [persona, personaLines, display, panelbg, compactSetting, { th, sz }, custom, artSize, smooth, nameRaw, effects, ...visRaw] = await Promise.all([
     $.store.get('tutien.persona'), $.store.get('tutien.personaLines'), $.store.get('tutien.display'),
     setting($, 'tutien.panelbg'), setting($, 'tutien.compact'), look($),
-    avatarOf($), setting($, 'tutien.artsize'), setting($, 'tutien.artsmooth'), $.store.get('tutien.name'),
+    avatarOf($), setting($, 'tutien.artsize'), setting($, 'tutien.artsmooth'), $.store.get('tutien.name'), setting($, 'tutien.effects'),
     ...VIS.map(v => setting($, v.key)),
   ])
   const name = (nameRaw as string | undefined) || ''
@@ -406,15 +408,20 @@ export async function renderPane($: any, e: any) {
   const artPx = ART_SIZES[artSize ?? ''] ?? ART_SIZES.vua
   // Terminal chỉ có cỡ thường và 'nho' (một nửa mỗi chiều); các cỡ lớn hơn chỉ dành cho Svg.
   const half = artSize === 'nho'
-  const raster = (cells: string) => half
-    ? <Raster key="realm" columns={CELL_COLS / 2} rows={CELL_ROWS / 2} cells={shrinkMemo(cells)} />
-    : <Raster key="realm" columns={CELL_COLS} rows={CELL_ROWS} cells={cells} />
+  // Ảnh chuyển động khi Hiệu ứng bật: Svg tự chạy SMIL, Raster đổi khung theo nhịp shimmer.
+  const aura = effects === 'off' ? null : realmColor(p.realm)
+  const raster = (cells0: string) => {
+    const cells = aura ? rasterFrame(cells0, CELL_COLS, CELL_ROWS, sh as number, aura) : cells0
+    return half
+      ? <Raster key="realm" columns={CELL_COLS / 2} rows={CELL_ROWS / 2} cells={shrinkMemo(cells)} />
+      : <Raster key="realm" columns={CELL_COLS} rows={CELL_ROWS} cells={cells} />
+  }
   let art: any = <Text>{alt}</Text>
   if (mode !== 'text' && e.surface !== 'terminal' && Svg) {
     // Claude Code Desktop và app điện thoại không vẽ Raster/Image (chỉ là fragment rỗng): vẽ ảnh PNG qua Svg.
     const file = realmImage($.plugin.root, p)
     const b64 = custom?.b64 ?? await cachedRead(`png:${file}`, () => $.fs.read(file, { as: 'bytes' }).then((x: any) => x?.base64 ?? null, () => null))
-    if (b64) art = <Svg key="realm" alt={alt} width={artPx} height={artPx} source={spriteOf(b64, smooth === 'on', artPx)} />
+    if (b64) art = <Svg key="realm" alt={alt} width={artPx} height={artPx} source={spriteOf(b64, smooth === 'on', artPx, aura)} />
   } else if (mode === 'raster' && custom?.cells && Raster) {
     art = raster(custom.cells)
   } else if ((mode === 'image' || (mode === 'raster' && custom && !custom.cells)) && Image) {

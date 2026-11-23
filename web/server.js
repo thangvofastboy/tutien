@@ -23,6 +23,10 @@ const PAGE = `<!doctype html>
   .card { width:min(420px,100%); background:var(--card); border:1px solid var(--line); border-radius:16px; padding:24px; text-align:center }
   img { width:240px; height:240px; image-rendering:pixelated; filter:drop-shadow(0 0 18px rgba(63,185,80,.35)) }
   .trib img { filter:drop-shadow(0 0 18px rgba(210,153,34,.55)) }
+  /* Nhân vật bồng bềnh, hào quang phập phồng; thiên phạt giữ quầng vàng đứng yên. */
+  img { --tt-aura:rgba(63,185,80,.45); transform-origin:50% 100%; animation:tt-float 3s ease-in-out infinite, tt-aura 3s ease-in-out infinite }
+  .trib img { animation:tt-float 3s ease-in-out infinite }
+  @keyframes tt-float{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-3px) scale(1.008,1.016)}}@keyframes tt-aura{0%,100%{filter:drop-shadow(0 0 10px var(--tt-aura))}50%{filter:drop-shadow(0 0 22px var(--tt-aura))}}@media (prefers-reduced-motion:reduce){img,.sprite{animation:none!important}}
   h1 { margin:8px 0 0; font-size:22px }
   .meta { color:var(--dim) }
   .realm { margin-top:12px; font-size:18px; font-weight:600 }
