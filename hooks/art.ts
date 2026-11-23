@@ -72,14 +72,19 @@ export function duelScene(a: string, b: string, aIcon: string, bIcon: string, wi
 
 // ---------- Công pháp: cuộn kinh có tên môn phái, sao theo số tầng đã tu ----------
 export function scrollScene(school: string, icon: string, color: string, skills: { icon: string; n: number; max: number; ult: boolean }[]): string {
+  const step = Math.min(65, 280 / Math.max(1, skills.length - 1))
+  const x0 = 180 - (step * (skills.length - 1)) / 2
+  const r = Math.min(24, Math.floor(step * 0.42))
   const rows = skills.map((s, i) => {
-    const x = 50 + i * 65
+    const x = x0 + i * step
     const lit = s.n > 0
-    return `<g opacity="${lit ? 1 : 0.45}"><circle cx="${x}" cy="100" r="24" fill="${s.ult ? '#3b2a00' : '#161b22'}" stroke="${lit ? color : '#30363d'}" stroke-width="${s.ult ? 3 : 2}">${lit ? `<animate attributeName="stroke-opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite"/>` : ''}</circle>
-<text x="${x}" y="109" font-size="24" text-anchor="middle">${s.icon}</text>
-<text x="${x}" y="142" font-size="11" fill="${color}" text-anchor="middle">${'★'.repeat(s.n)}${'☆'.repeat(s.max - s.n)}</text></g>`
+    // Quá 3 tầng thì chuỗi sao tràn sang ô bên cạnh, nên ghi số.
+    const tiers = s.max <= 3 ? `${'★'.repeat(s.n)}${'☆'.repeat(s.max - s.n)}` : `★${s.n}/${s.max}`
+    return `<g opacity="${lit ? 1 : 0.45}"><circle cx="${x}" cy="100" r="${r}" fill="${s.ult ? '#3b2a00' : '#161b22'}" stroke="${lit ? color : '#30363d'}" stroke-width="${s.ult ? 3 : 2}">${lit ? `<animate attributeName="stroke-opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite"/>` : ''}</circle>
+<text x="${x}" y="${100 + r * 0.375}" font-size="${r}" text-anchor="middle">${s.icon}</text>
+<text x="${x}" y="142" font-size="11" fill="${color}" text-anchor="middle">${tiers}</text></g>`
   }).join('')
-  const links = skills.slice(0, -1).map((_, i) => `<line x1="${74 + i * 65}" y1="100" x2="${91 + i * 65}" y2="100" stroke="${color}" stroke-opacity="0.4" stroke-width="2"/>`).join('')
+  const links = skills.slice(0, -1).map((_, i) => `<line x1="${x0 + i * step + r}" y1="100" x2="${x0 + (i + 1) * step - r}" y2="100" stroke="${color}" stroke-opacity="0.4" stroke-width="2"/>`).join('')
   return frame('#161b22', '#0d1117',
     `<rect x="14" y="14" width="${W - 28}" height="${H - 28}" rx="10" fill="#f5f0e1" opacity="0.06" stroke="${color}" stroke-opacity="0.6"/>` +
     `<text x="180" y="44" font-size="18" fill="${color}" text-anchor="middle" font-weight="800">${icon} ${esc(school)}</text>` + links + rows, 8, color)

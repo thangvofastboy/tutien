@@ -60,19 +60,21 @@ test('công pháp: tuyệt kỹ cần đủ 6 tầng; đổi lớp thì hoàn đ
   assert.match(learn(st, 'van-kiem').error!, /6 tầng/)
   const six = learn(st, 'kiem-tam').congPhap!
   const ult = learn({ ...st, congPhap: six }, 'van-kiem')
-  assert.match(ult.text!, /TUYỆT KỸ/)
+  assert.match(ult.text!, /tuyệt kỹ .* tầng 1\/2/)
   const ma = { ...st, player: { ...st.player, cls: 'Ma Tu' } }
   assert.deepEqual(congPhapOf(ma), { points: 10, learned: {} })
   assert.equal(treeView(ma).school, 'Nhật Nguyệt Thần Giáo')
   assert.equal(treeView(ma).schoolFrom, 'Tiếu Ngạo Giang Hồ')
-  assert.equal(treeView(ma).skills.length, 5)
-  assert.ok(cpEffects({ ...st, congPhap: { points: 0, learned: { 'kiem-tam': 2 } } }).duel === 8)
+  assert.equal(treeView(ma).skills.length, 7)
+  // Đủ tầng cho mọi điểm tới bậc cuối (REALM_COUNT − 1), không còn điểm thừa mà hết công pháp.
+  for (const cls of Object.keys(TREES)) assert.equal(Object.values(TREES[cls].skills).reduce((a, s) => a + s.max, 0), 32, cls)
+  assert.ok(cpEffects({ ...st, congPhap: { points: 0, learned: { 'kiem-tam': 2 } } }).duel === 6)
 })
 
-test('công pháp: lớp nào cũng có 4 công pháp thường và 1 tuyệt kỹ', () => {
+test('công pháp: lớp nào cũng có 6 công pháp thường và 1 tuyệt kỹ', () => {
   for (const [cls, t] of Object.entries(TREES)) {
     const sk = Object.values(t.skills)
-    assert.equal(sk.length, 5, cls)
+    assert.equal(sk.length, 7, cls)
     assert.equal(sk.filter(s => s.ult).length, 1, cls)
     for (const x of sk) assert.ok(x.from && x.flavor, `${cls}: ${x.name} cần ghi xuất xứ và lời đùa`)
   }
@@ -226,4 +228,18 @@ test('khóa của Object.prototype không phải công pháp hay linh căn (khô
   const { isLinhCan } = await import('./features.ts')
   assert.equal(isLinhCan('constructor'), false)
   assert.equal(isLinhCan('kim'), true)
+})
+
+test('công pháp: tu đầy cây vẫn không thắng chắc luận đạo; tuyệt kỹ tầng đầu không báo đại thành', () => {
+  for (const [cls, t] of Object.entries(TREES)) {
+    const learned = Object.fromEntries(Object.entries(t.skills).map(([id, s]) => [id, s.max]))
+    const st = { ...fresh(), player: { ...fresh().player, cls }, congPhap: { points: 0, learned } }
+    // Biên ngẫu nhiên của duel() là 0–30: cộng thêm từ 30 trở lên là cùng bậc thắng chắc.
+    assert.ok(cpEffects(st).duel < 30, `${cls}: duel ${cpEffects(st).duel}`)
+  }
+  const st = { ...fresh(), congPhap: { points: 2, learned: { 'nhat-kiem': 5, 'kiem-tam': 1 } } }
+  const first = learn(st, 'van-kiem')
+  // Client phát hiệu ứng "ĐẠI THÀNH" khi tin có chữ "TUYỆT KỸ".
+  assert.ok(!first.text!.includes('TUYỆT KỸ'))
+  assert.match(learn({ ...st, congPhap: first.congPhap! }, 'van-kiem').text!, /TUYỆT KỸ ĐẠI THÀNH/)
 })
